@@ -1,0 +1,69 @@
+/* Paper-and-ink basics (PLAN.md Section 11). Palette colours only. */
+:root {
+  --ink: #2b1d16;
+  --midnight: #1d2340;
+  --paper: #f3e7cf;
+  --tape: #e8d9a8;
+  --jam: #d9534f;
+  --leaf: #7cc26b;
+  --font-body: "Shantell Sans", "Comic Sans MS", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--midnight);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* A taped paper card. */
+.card {
+  position: absolute;
+  pointer-events: auto;
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  border-radius: 3px 6px 4px 5px;
+  padding: 14px 18px;
+  transform: rotate(-1deg);
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 64px;
+  height: 18px;
+  margin-left: -32px;
+  background: var(--tape);
+  opacity: 0.9;
+  transform: rotate(2deg);
+}
+
+.net-card { top: 24px; left: 24px; min-width: 260px; max-width: 340px; }
+.net-card h1 { margin: 0 0 6px; font-size: 20px; }
+.net-card .code { font-size: 32px; letter-spacing: 6px; font-weight: 700; }
+.net-card .status { font-size: 14px; margin: 4px 0 10px; }
+.net-card .status.error { color: var(--jam); }
+.net-card ul { margin: 8px 0 0; padding-left: 18px; }
+.net-card li.away { opacity: 0.5; }
+.net-card a { color: var(--ink); }
+.net-card .hint { font-size: 12px; margin-top: 10px; }
