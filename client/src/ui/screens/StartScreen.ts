@@ -22,7 +22,7 @@ export class StartScreen implements Screen {
     el("span", "tag-label", tag, "Your smuggler name");
     const input = el("input", "tag-input", tag);
     input.maxLength = 16;
-    input.value = savedName();
+    input.value = new URLSearchParams(location.search).get("name") ?? savedName();
     input.placeholder = "Smuggler";
     const name = (): string => {
       const n = input.value.trim();

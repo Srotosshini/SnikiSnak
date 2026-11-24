@@ -52,3 +52,16 @@ Decisions made where PLAN.md was unclear or the libraries changed. Each one pick
 8. **Toasts.** "Need one more friend!" and "Kiwi or Pip can carry this." are UI messages, sent by the server as text. Real dialogue (Crow lines, barks) lives in `client/src/content/script.ts`. The wrong-role barks come in Phase 3.
 9. **Placeholders.** The detection "eye" over your head (Section 11) is a simple meter bar in the bottom-left corner for now. The thimble is a small gold cup. Thought bubbles and sounds come in Phase 5.
 10. **Dev mode and F.** When you switch characters with backquote, the one you leave keeps holding F. To let go, switch back and tap F.
+
+## Phase 3
+
+1. **Flow timings.** I added `flow: { introTitle: 2.5, introPerLine: 2.8, briefing: 20 }` to `tuning.ts`. The intro lasts as long as the title card plus the Crow's lines. Everyone pressing Ready (or Enter) skips the intro and the briefing.
+2. **Dev mode skips the flow.** `?dev=1` goes straight to playing, with no lobby, intro or briefing, for fast testing. A dev character you switch away from keeps holding F and Q (rescue and cover), but lets go of E.
+3. **Level select.** The host can pick any level, in the lobby and on the results card. Locking levels until you've cleared the one before, and saving stars, come in Phase 7 as planned.
+4. **Kiwi covering counts as sneaking.** She moves at sneak speed, so her own footsteps and the cat's detection treat her as sneaking.
+5. **Cover hides only the teammate.** Section 4.3 says "covered by Kiwi, with both standing still", so the covered teammate is hidden, not Kiwi herself.
+6. **Reach.** Items, vents and latches work within 1 tile of their centre. A locked door is picked from a tile right next to it (Pip at (11, 6) in Level 4). Standing on the latch, the latch wins over the door next to it.
+7. **Latch timing.** "Press E on a latch: 1 s" means one press starts a 1 s action. It's cancelled if Mochi walks away.
+8. **Join errors.** Colyseus says "locked" for both a full room and one that has started, so both show "That heist is full or has already started."
+9. **Wrong-role messages** are now barks, with the lines from Section 3. Pressing E on a latch as Kiwi or Pip just shows the greyed "Mochi can do this" prompt, because Section 3 has no bark for it.
+10. **Odd-shaped furniture.** Groups that aren't rectangles, like Level 3's shelving island with the flour sack touching it, are built tile by tile with no gaps. Named furniture builders come in Phase 8.

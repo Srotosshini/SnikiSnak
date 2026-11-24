@@ -1,5 +1,27 @@
 # Changelog
 
+## Phase 3 — Lobby, level flow, first abilities (2026-11-24)
+
+- **Screens:**
+  - Start screen: name luggage tag, Host a heist, Join with code.
+  - Join screen: 4 letter boxes, with error cards.
+  - Lobby corkboard: code sticky note with Copy, three character cards to claim, Ready checkbox, the host's level picker and a GO stamp.
+- **Server lobby:** role claiming (a taken role is refused; click again to give it back) and ready. GO needs 3 players, 3 roles and everyone ready. The room locks when it leaves the lobby.
+- **Level flow:**
+  - Intro: title card, then the Crow's tin-can lines.
+  - Briefing: up to 20 s, with the camera looking straight down, paw prints along the cat's route and an arrow over the exit.
+  - Then playing, then results. Everyone pressing Ready skips ahead. The host's results card has Retry, Next level and Level select.
+- **Pip:**
+  - Lifts heavy loot: slower, footsteps of radius 4, ×1.3 detection.
+  - Picks locks: hold E for 4 s, a click every 0.8 s; progress holds for 2 s, then drains at 10%/s.
+- **Kiwi:** cover (hold Q). The nearest teammate within 1.2 tiles is muffled to ×0.4 and hidden when both stand still. Kiwi moves at sneak speed.
+- **Mochi:** vents (1.2 s to the paired vent, invisible and silent) and latches (1 s, silent).
+- **Doors:** a swinging panel. An open door lets players and the cat through and doesn't block vision.
+- **Interaction rule:** one shared function decides "what would E do here?" for both the server and the prompt.
+- **Barks:** wrong-role and ability barks (one per character every 4 s, one anywhere every 1.5 s), shown as speech bubbles.
+- **HUD basics:** cat face meter, level label, team portraits with status tags and your detection meter, ability cards, prompts with hold progress.
+- **Tests:** 114 shared (interaction targets added) and 43 server (abilities, lobby and flow).
+
 ## Phase 2 — The cat (2026-11-24)
 
 - **Sir Crumbs** (`server/src/game/CatBrain.ts`): every state from Section 4.5 except HUNT (sleep, stir, patrol, perch, investigate, chase, pounce, catch, search, give up, return).

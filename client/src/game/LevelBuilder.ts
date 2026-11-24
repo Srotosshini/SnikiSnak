@@ -141,7 +141,9 @@ function buildFurniture(group: TileGroup, level: LevelDef): THREE.Group {
   const rand = seeded(group.x * 31 + group.y * 17 + 3);
   const height = PROP_HEIGHTS[name] ?? 0.9 + rand() * 0.7;
   const color = FURNITURE_COLORS[Math.floor(rand() * FURNITURE_COLORS.length)];
-  const inset = 0.08;
+  const isRectShape = group.tiles.length === group.w * group.h;
+  // Odd-shaped groups are built tile by tile with no gaps, so they read as one piece.
+  const inset = isRectShape ? 0.08 : 0;
 
   const isRect = group.tiles.length === group.w * group.h;
   const boxes = isRect ? [{ x: group.x, y: group.y, w: group.w, h: group.h }] : group.tiles.map((t) => ({ x: t.x, y: t.y, w: 1, h: 1 }));

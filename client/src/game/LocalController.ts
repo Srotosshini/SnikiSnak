@@ -7,7 +7,7 @@
 // holds on key down and key up.
 // In dev mode one client owns all three characters and backquote switches
 // which one the keyboard controls. A character you switch away from keeps
-// holding F, so you can test rescues alone.
+// holding F and Q, so you can test rescues and cover alone.
 
 import {
   type Carry, type ClientMessages, type Grid, type HoldKey, type OpenSet, type Role,
@@ -116,15 +116,15 @@ export class LocalController {
     this.net.send(type, this.solo ? { ...msg, who } : msg);
   }
 
-  /** Dev mode: control the next character. The one we leave stands still (and keeps holding F). */
+  /** Dev mode: control the next character. The one we leave stands still (and keeps holding F and Q). */
   switchCharacter(): void {
     const ids = [...this.owned.keys()];
     if (ids.length < 2) return;
     const prev = this.current;
     if (prev) {
       if (prev.moving) { prev.moving = false; this.sendPos(prev); }
-      // Keep holding F (rescues), but let go of E and Q.
-      for (const k of ["E", "Q"] as const) if (prev.holding.has(k)) this.setHold(k, false);
+      // Keep holding F and Q (so you can test rescues and cover alone), but let go of E.
+      if (prev.holding.has("E")) this.setHold("E", false);
     }
     this.controlled = ids[(ids.indexOf(this.controlled) + 1) % ids.length];
     this.dirty = true;
