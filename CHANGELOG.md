@@ -1,5 +1,22 @@
 # Changelog
 
+## Phase 4 — Voice chat and LAN (2026-11-24)
+
+- `client/src/net/Voice.ts`: a WebRTC mesh between the 3 browsers.
+  - The room relays offers, answers and ICE candidates (`rtc`), and the lower session id makes the offer.
+  - It uses Google's public STUN server.
+  - A player with no mic still connects and hears everyone.
+- **Talking:** push-to-talk on V (the default) or open mic, and M mutes. The first V press asks for the mic if Test mic wasn't used.
+- **Routing:** each remote voice goes through its own gain node and filter into the voice bus. The Chrome muted-`<audio>` quirk is handled.
+- **Speaking indicator:** an AnalyserNode per stream counts above 0.02 RMS for 100 ms as speaking. It shows as sound waves over the character, a "talking" tag on the portrait, and a bouncing lobby card.
+- **Filters:** the jar muffle (700 Hz low-pass on a jarred player's voice) and an optional walkie-talkie band-pass with light distortion.
+- **Lobby:** Test mic with a level meter, plus push-to-talk and walkie-talkie checkboxes (saved in the browser). A muted, denied or missing mic shows "(mic off)" to everyone (`mic` message, `micOff` in the state).
+- **HUD:** a push-to-talk indicator in the bottom-right corner.
+- `client/src/audio/AudioBus.ts`: one AudioContext with music, sfx, blips, voice and ui buses, unlocked by the first click or key press.
+- **Test options:** `?fakemic=1` sends a beeping test tone instead of the mic, and `?nomic=1` never asks for the mic.
+- `TESTING.md`: step-by-step voice test on 3 laptops on the same Wi-Fi.
+- **Tests:** the server relays `rtc` only to `to` and shows the mic state (45 server tests).
+
 ## Phase 3 — Lobby, level flow, first abilities (2026-11-24)
 
 - **Screens:**

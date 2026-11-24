@@ -88,6 +88,7 @@ export class Hud {
   private readonly catText: HTMLSpanElement;
   private readonly team: HTMLDivElement;
   private readonly abilities: HTMLDivElement;
+  private readonly voice: HTMLDivElement;
   private result: HTMLDivElement | null = null;
   private resultKey = "";
   private teamKey = "";
@@ -109,6 +110,17 @@ export class Hud {
     this.toastBox = el("div", "hud-toasts", this.root);
     this.team = el("div", "hud-team", this.root);
     this.abilities = el("div", "hud-abilities", this.root);
+    this.voice = el("div", "card hud-voice", this.root);
+  }
+
+  /** The push-to-talk indicator: "talking", "idle", "muted" or "nomic". */
+  setVoice(state: "talking" | "idle" | "muted" | "nomic" | "off", pushToTalk: boolean): void {
+    this.voice.hidden = state === "off";
+    this.voice.dataset.state = state;
+    this.voice.textContent = state === "talking" ? "Talking..."
+      : state === "muted" ? "Mic muted (M)"
+      : state === "nomic" ? "No mic: pings and barks still work"
+      : pushToTalk ? "Hold V to talk" : "Open mic (M mutes)";
   }
 
   setLevel(name: string, item: string | null): void {

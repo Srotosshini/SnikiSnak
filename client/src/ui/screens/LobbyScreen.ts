@@ -1,11 +1,13 @@
 // Lobby (PLAN.md Section 13): a corkboard with the room code, three character
 // cards to claim, a Ready checkbox, and for the host the level picker and GO.
-// The mic test arrives with voice chat in Phase 4.
+// Voice: a Test mic button with a level meter, push-to-talk or open mic, and
+// the walkie-talkie filter (Section 10). A speaking player's card bounces.
 
 import { LEVELS, ROLES, type Role } from "@snikisnak/shared";
 import type { HeistRoom, HeistView, PlayerView } from "../../net/Net";
 import { CHARACTERS } from "../../content/characters";
 import { type Screen, button, el } from "../dom";
+import { LOCAL_PEER, type Voice, saveVoiceSettings } from "../../net/Voice";
 
 export class LobbyScreen implements Screen {
   private readonly root: HTMLDivElement;
@@ -18,8 +20,13 @@ export class LobbyScreen implements Screen {
   private readonly goButton: HTMLButtonElement;
   private readonly status: HTMLParagraphElement;
   private readonly people: HTMLUListElement;
+  private readonly micFill: HTMLDivElement | null = null;
+  private readonly micStatus: HTMLSpanElement | null = null;
+  private readonly speaking = new Set<string>();
+  private raf = 0;
+  private lastState: HeistView | null = null;
 
-  constructor(parent: HTMLElement, private readonly room: HeistRoom) {
+  constructor(parent: HTMLElement, private readonly room: HeistRoom, private readonly voice: Voice | null = null) {
     this.root = el("div", "screen lobby-screen", parent);
     const board = el("div", "corkboard", this.root);
 
@@ -67,6 +74,52 @@ export class LobbyScreen implements Screen {
     this.levelSelect.onchange = () => room.send("select", { level: Number(this.levelSelect.value) });
     this.goButton = button("GO!", this.hostArea, () => room.send("start", {}), "paper-button go-stamp");
     this.status = el("p", "lobby-status", controls);
+
+    if (voice) {
+      const v = el("div", "voice-box", controls);
+      const row = el("div", "voice-row", v);
+      button("Test mic", row, () => void voice.askMic().then(() => this.refreshVoice()), "paper-button small");
+      const bar = el("div", "meter-bar mic-meter", row);
+      this.micFill = el("div", "meter-fill", bar);
+      this.micStatus = el("span", "mic-status", row);
+      const opts = el("div", "voice-row", v);
+      const ptt = el("label", "", opts);
+      const pttBox = el("input", "", ptt);
+      pttBox.type = "checkbox";
+      pttBox.checked = voice.settings.pushToTalk;
+      el("span", "", ptt, " Push-to-talk (hold V)");
+      pttBox.onchange = () => { voice.setSettings({ pushToTalk: pttBox.checked }); saveVoiceSettings(voice.settings); this.refreshVoice(); };
+      const walkie = el("label", "", opts);
+      const walkieBox = el("input", "", walkie);
+      walkieBox.type = "checkbox";
+      walkieBox.checked = voice.settings.walkie;
+      el("span", "", walkie, " Walkie-talkie filter");
+      walkieBox.onchange = () => { voice.setSettings({ walkie: walkieBox.checked }); saveVoiceSettings(voice.settings); };
+      el("p", "voice-hint", v, "Headphones stop echo. No mic? You can still play: pings and barks carry the basics.");
+      this.refreshVoice();
+      const tick = (): void => {
+        if (this.micFill) this.micFill.style.width = `${Math.min(100, Math.round(voice.micLevel * 400))}%`;
+        this.raf = requestAnimationFrame(tick);
+      };
+      this.raf = requestAnimationFrame(tick);
+    }
+  }
+
+  private refreshVoice(): void {
+    if (!this.voice || !this.micStatus) return;
+    const v = this.voice;
+    this.micStatus.textContent = v.hasMic
+      ? (v.isMuted ? "Muted (M)" : v.settings.pushToTalk ? "Mic on. Hold V to talk." : "Open mic.")
+      : v.micError === "denied" ? "Mic blocked: allow it in the address bar."
+      : v.micError === "missing" ? "No mic found."
+      : "Click Test mic.";
+  }
+
+  /** Bounce the card of whoever is talking. */
+  setSpeaking(peerId: string, on: boolean): void {
+    const id = peerId === LOCAL_PEER ? this.room.sessionId : peerId;
+    if (on) this.speaking.add(id); else this.speaking.delete(id);
+    if (this.lastState) this.update(this.lastState);
   }
 
   private claim(role: Role): void {
@@ -76,6 +129,8 @@ export class LobbyScreen implements Screen {
   }
 
   update(state: HeistView): void {
+    this.lastState = state;
+    this.refreshVoice();
     const me = state.players.get(this.room.sessionId);
     const players: PlayerView[] = [];
     state.players.forEach((p) => players.push(p));
@@ -93,7 +148,9 @@ export class LobbyScreen implements Screen {
       const owner = players.find((p) => p.role === role);
       card.classList.toggle("claimed", !!owner);
       card.classList.toggle("mine", owner?.id === this.room.sessionId);
+      card.classList.toggle("speaking", !!owner && this.speaking.has(owner.id));
       card.querySelector(".claimed-by")!.textContent = owner ? owner.name : "Click to claim";
+      card.classList.toggle("mic-off", !!owner?.micOff);
     }
 
     this.readyBox.checked = !!me?.ready;
@@ -115,6 +172,7 @@ export class LobbyScreen implements Screen {
   }
 
   unmount(): void {
+    cancelAnimationFrame(this.raf);
     this.root.remove();
   }
 }

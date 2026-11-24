@@ -7,6 +7,8 @@
 //   ?debug=1                            allow the F1 overlay outside dev mode
 //   ?name=Ana                           your smuggler name
 //   ?server=wss://host:port             a different server
+//   ?nomic=1                            never ask for the microphone
+//   ?fakemic=1                          send a beeping test tone instead of the mic (testing voice chat)
 //
 // The "Click to begin" note, the 3D rooftop and the opening cutscene arrive in Phase 5.
 
@@ -19,6 +21,8 @@ import { type Screen, el, savedName } from "./ui/dom";
 import { StartScreen } from "./ui/screens/StartScreen";
 import { JoinScreen } from "./ui/screens/JoinScreen";
 import { LobbyScreen } from "./ui/screens/LobbyScreen";
+import { LOCAL_PEER, Voice, loadVoiceSettings } from "./net/Voice";
+import { audioBus } from "./audio/AudioBus";
 
 const params = new URLSearchParams(location.search);
 const dev = params.get("dev") === "1";
@@ -82,13 +86,28 @@ function enter(room: HeistRoom): void {
   let lobby: LobbyScreen | null = null;
   let scene: GameScene | null = null;
   const devCard = dev ? el("div", "card dev-card", ui) : null;
+  const voice = dev ? null : startVoice(room);
+  if (debug) Object.assign(window, { __voice: voice });
+  const voiceState = (): "talking" | "idle" | "muted" | "nomic" | "off" =>
+    !voice ? "off" : !voice.hasMic ? "nomic" : voice.isMuted ? "muted" : voice.isTalking ? "talking" : "idle";
+  voice?.onSpeaking((peerId, on) => {
+    lobby?.setSpeaking(peerId, on);
+    scene?.setTalking(peerId === LOCAL_PEER ? room.sessionId : peerId, on);
+  });
+  voice?.onChange(() => scene?.setVoiceState(voiceState(), voice.settings.pushToTalk));
 
   room.onStateChange((state) => {
     if (!state.players) return;
+    if (voice) {
+      // One voice connection to each other player; jarred players sound muffled.
+      const ids: string[] = [];
+      state.players.forEach((p) => { ids.push(p.owner); if (p.owner !== room.sessionId) voice.setPeerJarred(p.owner, p.jarred); });
+      voice.syncPeers(ids);
+    }
     if (state.phase === "lobby") {
       scene?.dispose();
       scene = null;
-      if (!lobby) lobby = new LobbyScreen(ui, room);
+      if (!lobby) lobby = new LobbyScreen(ui, room, voice);
       lobby.update(state);
     } else {
       lobby?.unmount();
@@ -97,6 +116,7 @@ function enter(room: HeistRoom): void {
         scene?.dispose();
         scene = new GameScene(renderer, room, { debug, uiRoot: ui });
         console.log(`level ${state.level}: ${scene.level.name}`);
+        scene.setVoiceState(voiceState(), voice?.settings.pushToTalk ?? true);
         // Handy in the browser console while debugging: __sniki.room.state
         if (debug) Object.assign(window, { __sniki: { room, scene, renderer } });
       } else {
@@ -111,8 +131,58 @@ function enter(room: HeistRoom): void {
     scene?.dispose();
     lobby?.unmount();
     devCard?.remove();
+    voice?.dispose();
     startScreen(`Disconnected (code ${code}).`);
   });
+}
+
+/** Voice chat for a room: push-to-talk on V, M mutes (Section 10). */
+function startVoice(room: HeistRoom): Voice {
+  const voice = new Voice(audioBus());
+  voice.settings = loadVoiceSettings();
+  void voice.init(room);
+  if (params.get("fakemic") === "1") voice.useStream(fakeMic());
+  else if (params.get("nomic") === "1") voice.skipMic();
+
+  const typing = (e: KeyboardEvent): boolean =>
+    e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+  const onKey = (e: KeyboardEvent, down: boolean): void => {
+    if (typing(e) || e.repeat) return;
+    if (e.code === "KeyV") {
+      // The first V asks for the mic if the lobby's Test mic wasn't used.
+      if (down && !voice.hasMic && !voice.micError) void voice.askMic();
+      voice.setPushToTalk(down);
+    }
+    if (down && e.code === "KeyM") voice.setMuted(!voice.isMuted);
+  };
+  const keyDown = (e: KeyboardEvent): void => onKey(e, true);
+  const keyUp = (e: KeyboardEvent): void => onKey(e, false);
+  window.addEventListener("keydown", keyDown);
+  window.addEventListener("keyup", keyUp);
+  window.addEventListener("blur", () => voice.setPushToTalk(false));
+  room.onLeave(() => {
+    window.removeEventListener("keydown", keyDown);
+    window.removeEventListener("keyup", keyUp);
+  });
+  return voice;
+}
+
+/** A test tone that beeps on and off, standing in for a microphone. */
+function fakeMic(): MediaStream {
+  const bus = audioBus();
+  const ctx = bus.ctx;
+  const osc = ctx.createOscillator();
+  osc.frequency.value = 330 + Math.random() * 200;
+  const gate = ctx.createGain();
+  gate.gain.value = 0;
+  const dest = ctx.createMediaStreamDestination();
+  osc.connect(gate).connect(dest);
+  osc.start();
+  window.setInterval(() => {
+    const on = gate.gain.value < 0.1;
+    gate.gain.setValueAtTime(on ? 0.3 : 0, ctx.currentTime);
+  }, 700);
+  return dest.stream;
 }
 
 // Boot.

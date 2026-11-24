@@ -72,6 +72,8 @@ export class GameScene {
   private readonly removeFrame: () => void;
   private readonly unsubscribe: Array<() => void> = [];
   private leftBehind: string[] = [];
+  /** Player ids currently talking on voice chat. */
+  private readonly talking = new Set<string>();
   private t = 0;
 
   constructor(private readonly renderer: Renderer, private readonly room: HeistRoom, opts: GameSceneOptions) {
@@ -193,6 +195,23 @@ export class GameScene {
 
   private markLocal(id: string): void {
     for (const e of this.entities.values()) e.character.setLocal(e.id === id);
+  }
+
+  /** Voice chat speaking indicator: sound waves over that character's head. */
+  setTalking(playerId: string, on: boolean): void {
+    if (on) this.talking.add(playerId); else this.talking.delete(playerId);
+    const e = this.entities.get(playerId);
+    if (e) this.bubbles.setTalking(e.character.root, HEAD_HEIGHT[e.character.role], on);
+  }
+
+  /** The push-to-talk indicator in the bottom-right corner. */
+  setVoiceState(state: "talking" | "idle" | "muted" | "nomic" | "off", pushToTalk: boolean): void {
+    this.hud.setVoice(state, pushToTalk);
+  }
+
+  /** The id of the character this client controls (for its own speaking indicator). */
+  get controlledId(): string {
+    return this.controller.controlled;
   }
 
   private showBark(who: Role, lineId: string): void {
@@ -317,6 +336,8 @@ export class GameScene {
       if (p.mode === "covering") status.push("covering");
       if (p.mode === "covered") status.push("covered");
       if (p.carrying) status.push("carrying");
+      if (this.talking.has(p.id)) status.push("talking");
+      if (p.micOff) status.push("mic off");
       team.push({ role: p.role as Role, name: p.name, me: p.id === this.controller.controlled, seen: p.seen, status });
     });
     this.hud.setTeam(team);

@@ -52,6 +52,17 @@ export class HeistRoom extends Room<{ state: HeistState }> {
       this.startLevel(next);
     },
     pos: (client: Client, msg: ClientMessages["pos"]) => this.onPos(client, msg),
+    // Voice chat signalling (Section 10): forward offers, answers and ICE candidates
+    // only to the player named in `to`, adding `from`.
+    rtc: (client: Client, msg: ClientMessages["rtc"]) => {
+      if (!msg || typeof msg.to !== "string" || msg.to === client.sessionId) return;
+      const target = this.clients.find((c) => c.sessionId === msg.to);
+      const out: ServerMessages["rtc"] = { from: client.sessionId, data: msg.data };
+      target?.send("rtc", out);
+    },
+    mic: (client: Client, msg: ClientMessages["mic"]) => {
+      this.forOwned(client, (p) => { p.micOff = msg?.muted === true; });
+    },
     interact: (client: Client, msg: ClientMessages["interact"]) => {
       const p = this.ownedPlayer(client, msg?.who);
       if (p && this.state.phase === "playing") this.sim.interact(p.id);

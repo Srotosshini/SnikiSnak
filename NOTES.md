@@ -65,3 +65,13 @@ Decisions made where PLAN.md was unclear or the libraries changed. Each one pick
 8. **Join errors.** Colyseus says "locked" for both a full room and one that has started, so both show "That heist is full or has already started."
 9. **Wrong-role messages** are now barks, with the lines from Section 3. Pressing E on a latch as Kiwi or Pip just shows the greyed "Mochi can do this" prompt, because Section 3 has no bark for it.
 10. **Odd-shaped furniture.** Groups that aren't rectangles, like Level 3's shelving island with the flour sack touching it, are built tile by tile with no gaps. Named furniture builders come in Phase 8.
+
+## Phase 4
+
+1. **When the mic is asked for.** Only after a click: the lobby's Test mic button, or the first V press in the game. Browsers block the prompt without a click, and Section 10 asks for a Test mic button.
+2. **No mic still connects.** A player without a mic still opens the voice connections, so they hear everyone. Until someone's mic is on, the others see "(mic off)" on their card and "mic off" on their portrait.
+3. **Dev mode has no voice.** A solo dev room is just you, so voice is off there.
+4. **Walkie-talkie filter.** Section 10 says 400–3000 Hz. I used one band-pass filter centred near 1.1 kHz with a wide Q, which covers roughly that range, plus light distortion. It's a setting each player turns on for themselves (lobby checkbox for now; the Settings screen comes in Phase 5).
+5. **Saved settings.** Push-to-talk and the walkie-talkie choice are saved in the browser (`snikisnak.voice`). Per-player volume sliders and the mic device picker come with the Settings screen in Phase 5. `Voice.setPeerVolume` already works.
+6. **Reconnecting.** If a voice connection fails, it is torn down and set up again from scratch. A player who refreshes the page gets a new session id, and the others connect to them again automatically.
+7. **TURN server.** None, as planned. Same Wi-Fi works with STUN alone. If voice fails across different networks, use a Discord call as the backup (see `TESTING.md`).

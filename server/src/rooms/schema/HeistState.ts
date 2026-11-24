@@ -27,6 +27,7 @@ export const PlayerState = schema({
   mode: t.string().default(""),          // "" | vent | ledge | roomba | covering | covered
   holdKind: t.string().default(""),      // what the current hold is doing: "" | rescue | exit | pick | latch
   hold: t.number().default(0),           // its progress, 0..1
+  micOff: t.boolean().default(false),    // mic muted, denied or missing: others show a crossed-out mic
 });
 export type PlayerState = SchemaType<typeof PlayerState>;
 

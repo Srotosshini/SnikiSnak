@@ -12,7 +12,7 @@ export interface PlayerView {
   id: string; owner: string; name: string; role: string; ready: boolean; connected: boolean;
   x: number; z: number; facing: number; moving: boolean; sneaking: boolean;
   hidden: boolean; seen: number; jarred: boolean; rescue: number; carrying: string;
-  mode: string; holdKind: string; hold: number;
+  mode: string; holdKind: string; hold: number; micOff: boolean;
 }
 export interface DoorView { id: string; open: boolean; pick: number; }
 export interface CatView {

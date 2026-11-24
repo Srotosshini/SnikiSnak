@@ -115,6 +115,29 @@ describe("heist room", () => {
       assert.deepStrictEqual([kiwi.x, kiwi.z], [1.5, 1.5]);
     });
 
+    it("relays voice signalling only to the named player, adding from", async () => {
+      const a = await colyseus.sdk.create("heist", {});
+      const b = await colyseus.sdk.joinById(a.roomId, {});
+      const c = await colyseus.sdk.joinById(a.roomId, {});
+      const got: Record<string, Array<{ from: string; data: unknown }>> = { b: [], c: [] };
+      b.onMessage("rtc", (m: { from: string; data: unknown }) => got.b.push(m));
+      c.onMessage("rtc", (m: { from: string; data: unknown }) => got.c.push(m));
+      a.send("rtc", { to: b.sessionId, data: { type: "offer", sdp: "x" } });
+      await waitFor(() => got.b.length === 1);
+      await pause(80);
+      assert.deepStrictEqual(got.b[0], { from: a.sessionId, data: { type: "offer", sdp: "x" } });
+      assert.strictEqual(got.c.length, 0);
+    });
+
+    it("shows a muted or missing mic to everyone", async () => {
+      const a = await colyseus.sdk.create("heist", {});
+      const room = colyseus.getRoomById(a.roomId) as unknown as HeistRoom;
+      a.send("mic", { muted: true });
+      await waitFor(() => room.state.players.get(a.sessionId)?.micOff === true);
+      a.send("mic", { muted: false });
+      await waitFor(() => room.state.players.get(a.sessionId)?.micOff === false);
+    });
+
     it("the host picks the first level in the lobby", async () => {
       const a = await colyseus.sdk.create("heist", {});
       const b = await colyseus.sdk.joinById(a.roomId, {});
