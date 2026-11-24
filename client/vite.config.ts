@@ -5,12 +5,11 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 // address. The Colyseus server is proxied through the same HTTPS origin at
 // /colyseus, so the game socket isn't blocked as mixed content (PLAN.md Section 10).
 //
-// PLAIN_HTTP=1 serves plain http instead (only useful on this machine:
-// localhost counts as secure, so the mic still works there).
-const plainHttp = process.env.PLAIN_HTTP === "1";
-
-export default defineConfig({
-  plugins: plainHttp ? [] : [basicSsl()],
+// Plain http instead (`npm run play`, `--mode http`, or PLAIN_HTTP=1) is for
+// playing on this one computer: localhost counts as secure, so the mic still
+// works, and there's no certificate warning.
+export default defineConfig(({ mode }) => ({
+  plugins: mode === "http" || process.env.PLAIN_HTTP === "1" ? [] : [basicSsl()],
   // Three.js alone is ~700 kB minified; that's expected for this game.
   build: { chunkSizeWarningLimit: 1200 },
   server: {
@@ -26,4 +25,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

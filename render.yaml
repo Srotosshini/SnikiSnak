@@ -1,0 +1,14 @@
+# Free hosting on Render.com (PLAN.md Section 8, "npm start").
+# One web service builds the client and runs the game server, which also
+# serves the built page on Render's HTTPS address, so one link is all players need.
+services:
+  - type: web
+    name: snikisnak
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
