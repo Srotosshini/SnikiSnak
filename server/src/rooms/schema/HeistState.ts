@@ -66,8 +66,10 @@ export type DoorState = SchemaType<typeof DoorState>;
 export const HeistState = schema({
   phase: t.string().default("lobby"),
   level: t.number().default(1),
-  /** Seconds left in the intro or briefing. */
+  /** Seconds left in the cutscene, intro or briefing. */
   timer: t.number().default(0),
+  /** How many players are holding Space to skip the cutscene. */
+  skipping: t.number().default(0),
   /** Goes up every time a level starts or restarts, so clients know to rebuild. */
   run: t.number().default(0),
   hostId: t.string().default(""),

@@ -1,8 +1,8 @@
 // The one room type, "heist" (PLAN.md Section 9).
 //
-// Phases: lobby → intro (tin-can call) → briefing (up to 20 s) → playing →
-// caught or complete → the next level's intro. (The opening cutscene arrives in
-// Phase 5 and the ending in Phase 7.)
+// Phases: lobby → cutscene (first run of Level 1 only) → intro (tin-can call) →
+// briefing (up to 20 s) → playing → caught or complete → the next level's intro.
+// (The ending arrives in Phase 7.)
 //
 // Lobby: players claim roles (no two the same), tick Ready, and the host
 // presses GO once there are 3 players with 3 roles, all ready. The room locks
@@ -26,6 +26,12 @@ export class HeistRoom extends Room<{ state: HeistState }> {
   maxClients = 3;
   state = new HeistState();
   sim!: Simulation;
+  /** The opening cutscene plays once per room, before Level 1. */
+  private cutsceneDone = false;
+  /** When each client started holding Space during the cutscene. */
+  private readonly skipHeld = new Map<string, number>();
+  private elapsed = 0;
+  private readonly lastPingAt = new Map<string, number>();
 
   messages = {
     role: (client: Client, msg: ClientMessages["role"] | { role: "" }) => this.claimRole(client, msg?.role),
@@ -33,7 +39,8 @@ export class HeistRoom extends Room<{ state: HeistState }> {
     start: (client: Client) => {
       if (this.isHost(client) && this.state.phase === "lobby" && this.canStart()) {
         void this.lock();
-        this.startLevel(this.state.level);
+        if (this.state.level === 1 && !this.cutsceneDone) this.startCutscene();
+        else this.startLevel(this.state.level);
       }
     },
     select: (client: Client, msg: ClientMessages["select"]) => {
@@ -52,6 +59,23 @@ export class HeistRoom extends Room<{ state: HeistState }> {
       this.startLevel(next);
     },
     pos: (client: Client, msg: ClientMessages["pos"]) => this.onPos(client, msg),
+    // Holding Space during the cutscene: everyone holding for 1 s skips it.
+    skip: (client: Client, msg: ClientMessages["skip"]) => {
+      if (msg?.holding === true) { if (!this.skipHeld.has(client.sessionId)) this.skipHeld.set(client.sessionId, this.elapsed); }
+      else this.skipHeld.delete(client.sessionId);
+    },
+    // Pings (keys 1-4): "Go here", "Cat!", "Wait", "Help". At most one per player every 0.5 s.
+    ping: (client: Client, msg: ClientMessages["ping"]) => {
+      const kind = Number(msg?.kind);
+      const x = Number(msg?.x), z = Number(msg?.z);
+      if (![1, 2, 3, 4].includes(kind) || !Number.isFinite(x) || !Number.isFinite(z)) return;
+      const last = this.lastPingAt.get(client.sessionId) ?? -Infinity;
+      if (this.elapsed - last < TUNING.flow.pingEvery) return;
+      this.lastPingAt.set(client.sessionId, this.elapsed);
+      const p = this.ownedPlayer(client, (msg as { who?: string }).who);
+      const out: ServerMessages["ping"] = { from: p?.id ?? client.sessionId, kind: kind as 1 | 2 | 3 | 4, x, z };
+      this.broadcast("ping", out);
+    },
     // Voice chat signalling (Section 10): forward offers, answers and ICE candidates
     // only to the player named in `to`, adding `from`.
     rtc: (client: Client, msg: ClientMessages["rtc"]) => {
@@ -202,8 +226,33 @@ export class HeistRoom extends Room<{ state: HeistState }> {
     }
   }
 
+  /** The opening cutscene "The Royal Errand" (Section 3). */
+  private startCutscene(): void {
+    this.state.phase = "cutscene";
+    this.state.timer = TUNING.flow.cutscene;
+    this.skipHeld.clear();
+  }
+
+  private endCutscene(): void {
+    this.cutsceneDone = true;
+    this.state.skipping = 0;
+    this.skipHeld.clear();
+    this.startLevel(1);
+  }
+
   private tick(dt: number): void {
     const s = this.state;
+    this.elapsed += dt;
+    if (s.phase === "cutscene") {
+      s.timer = Math.max(0, s.timer - dt);
+      const everyoneHolding = this.clients.length > 0 && this.clients.every((c) => {
+        const since = this.skipHeld.get(c.sessionId);
+        return since !== undefined && this.elapsed - since >= TUNING.flow.skipHold;
+      });
+      s.skipping = this.clients.filter((c) => this.skipHeld.has(c.sessionId)).length;
+      if (s.timer <= 0 || everyoneHolding) this.endCutscene();
+      return;
+    }
     if (s.phase === "intro" || s.phase === "briefing") {
       s.timer = Math.max(0, s.timer - dt);
       const allReady = s.players.size > 0 && [...s.players.values()].every((p) => p.ready);
@@ -246,9 +295,13 @@ export class HeistRoom extends Room<{ state: HeistState }> {
         const msg: ServerMessages["bark"] = { who, lineId };
         this.broadcast("bark", msg);
       },
-      complete: (stars: number, leftBehind: string[]) => {
+      card: (cardId: string) => {
+        const msg: ServerMessages["card"] = { cardId };
+        this.broadcast("card", msg);
+      },
+      complete: (stars: number, leftBehind: string[], home: string[], time: number) => {
         this.state.phase = "complete";
-        const msg: ServerMessages["complete"] = { stars, leftBehind };
+        const msg: ServerMessages["complete"] = { stars, leftBehind, home, time };
         this.broadcast("complete", msg);
         console.log(`[heist ${this.state.code}] level ${this.state.level} complete, ${stars} star(s)`);
       },

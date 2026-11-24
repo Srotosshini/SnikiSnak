@@ -8,16 +8,17 @@ import { Simulation } from "../src/game/Simulation.js";
 
 const DT = 1 / TUNING.tickHz;
 
-interface Log { noises: string[]; toasts: string[]; sfx: string[]; barks: string[]; complete: Array<{ stars: number; leftBehind: string[] }>; caught: number; }
+interface Log { noises: string[]; toasts: string[]; sfx: string[]; barks: string[]; cards: string[]; complete: Array<{ stars: number; leftBehind: string[] }>; caught: number; }
 
 function setup(levelId: number, roles: Role[] = ["kiwi", "mochi", "pip"]) {
   const state = new HeistState();
-  const log: Log = { noises: [], toasts: [], sfx: [], barks: [], complete: [], caught: 0 };
+  const log: Log = { noises: [], toasts: [], sfx: [], barks: [], cards: [], complete: [], caught: 0 };
   const sim = new Simulation(state, getLevel(levelId), {
     noise: (n) => log.noises.push(`${n.kind}:${n.radius}`),
     toast: (_id, text) => log.toasts.push(text),
     sfx: (name) => log.sfx.push(name),
     bark: (who, lineId) => log.barks.push(`${who}:${lineId}`),
+    card: (id) => log.cards.push(id),
     complete: (stars, leftBehind) => log.complete.push({ stars, leftBehind }),
     caught: () => { log.caught++; },
   });
@@ -467,5 +468,59 @@ describe("Phase 3 abilities", () => {
     t.sim.interact("mochi");
     t.run(0.5);
     assert.strictEqual(t.player("mochi").seen, 0);
+  });
+});
+
+describe("Phase 5: barks, thought bubbles and tutorial cards", () => {
+  it("getting caught: the victim and a teammate bark, the cat thinks, the jar card appears", () => {
+    const t = setup(2);
+    t.place("pip", 16.5, 2.5);
+    t.run(30);
+    assert.ok(t.player("pip").jarred);
+    assert.ok(t.log.barks.some((b) => b.startsWith("pip:bark_spotted_pip")), t.log.barks.join(","));
+    assert.ok(t.log.barks.some((b) => b.startsWith("pip:bark_jarred_pip")), t.log.barks.join(","));
+    assert.ok(t.log.barks.some((b) => /^(kiwi|mochi):bark_teammateJarred/.test(b)), t.log.barks.join(","));
+    assert.ok(t.log.cards.includes("jarred"));
+    assert.ok(t.log.cards.includes("cone"));
+    assert.ok(t.state.cat.bubbleSeq > 0);
+  });
+
+  it("the first squeak shows the squeak card once, and barks", () => {
+    const t = setup(1);
+    t.walkTo("mochi", 6.5, 3.5);
+    t.walkTo("mochi", 3.5, 3.5);
+    assert.deepStrictEqual(t.log.cards.filter((c) => c === "squeak"), ["squeak"]);
+    assert.ok(t.log.barks.some((b) => b.startsWith("mochi:bark_squeak")));
+  });
+
+  it("barks wait for the cooldowns instead of being lost", () => {
+    const t = setup(4);
+    t.place("kiwi", 11.5, 6.5);
+    t.place("pip", 8.5, 5.5);
+    t.sim.interact("kiwi"); // wrong role: plays now
+    t.sim.interact("pip");  // wrong role (vent): waits 1.5 s for the global cooldown
+    assert.deepStrictEqual(t.log.barks, ["kiwi:wrong_kiwi_lock"]);
+    t.run(1.6);
+    assert.deepStrictEqual(t.log.barks, ["kiwi:wrong_kiwi_lock", "pip:wrong_pip_vent"]);
+  });
+
+  it("standing still for 20 s makes an idle bark", () => {
+    const t = setup(1);
+    t.run(20.2);
+    assert.ok(t.log.barks.some((b) => b.includes("bark_idle")), t.log.barks.join(","));
+  });
+
+  it("winning sends who made it home and the time", () => {
+    const t = setup(1);
+    let got: { home: string[]; time: number } | null = null;
+    const sim = t.sim as unknown as { events: { complete: (s: number, l: string[], h: string[], time: number) => void } };
+    const original = sim.events.complete;
+    sim.events.complete = (s, l, h, time) => { got = { home: h, time }; original(s, l, h, time); };
+    t.place("kiwi", 18.5, 4.5);
+    t.place("mochi", 18.5, 5.5);
+    t.place("pip", 19.5, 4.5);
+    t.run(0.6);
+    assert.ok(got);
+    assert.deepStrictEqual((got as { home: string[] }).home.sort(), ["kiwi", "mochi", "pip"]);
   });
 });

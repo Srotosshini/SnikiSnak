@@ -1,12 +1,15 @@
 // Speech bubbles over characters' heads (PLAN.md Section 3, "In-game barks"),
 // and the little sound waves over whoever is talking on voice chat (Section 10).
-// Each bark shows for TUNING.bark.show seconds. The blip voice comes in Phase 5.
+// Each bark shows for TUNING.bark.show seconds (longer if the line takes longer
+// to say), typed out in time with the blip voice.
 
 import * as THREE from "three";
 import { TUNING } from "@snikisnak/shared";
 import { el } from "./dom";
+import type { Blips, Speech } from "../audio/Blips";
+import type { Speaker } from "../content/script";
 
-interface Bubble { div: HTMLDivElement; target: THREE.Object3D; height: number; until: number; }
+interface Bubble { div: HTMLDivElement; target: THREE.Object3D; height: number; until: number; speech: Speech | null; }
 interface Waves { div: HTMLDivElement; target: THREE.Object3D; height: number; }
 
 export class Bubbles {
@@ -15,17 +18,35 @@ export class Bubbles {
   private readonly v = new THREE.Vector3();
   private readonly waves = new Map<THREE.Object3D, Waves>();
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, private readonly blips: Blips | null = null) {
     this.root = el("div", "bubbles", parent);
   }
 
-  /** Show a line over an object (one bubble per object at a time). */
-  say(target: THREE.Object3D, height: number, speaker: string, text: string): void {
+  /**
+   * Show a line over an object (one bubble per object at a time). With a voice,
+   * the text appears letter by letter in time with the blips.
+   */
+  say(target: THREE.Object3D, height: number, speaker: string, text: string, voice?: Speaker): void {
     for (const b of this.bubbles.filter((x) => x.target === target)) this.remove(b);
     const div = el("div", "bubble", this.root);
     el("span", "bubble-who", div, speaker);
+    const body = el("span", "bubble-text", div, voice && this.blips ? "" : text);
+    let speech: Speech | null = null;
+    let show: number = TUNING.bark.show;
+    if (voice && this.blips) {
+      // Barks show for about 2.2 s (Section 3): long ones are said a little faster to fit.
+      speech = this.blips.speak(voice, text, (n) => { body.textContent = text.slice(0, n); }, show + 0.3);
+      show = Math.max(show, speech.duration + 0.8);
+    }
+    this.bubbles.push({ div, target, height, until: performance.now() + show * 1000, speech });
+  }
+
+  /** Sir Crumbs's thought bubble: a little cloud, no voice. */
+  think(target: THREE.Object3D, height: number, text: string): void {
+    for (const b of this.bubbles.filter((x) => x.target === target)) this.remove(b);
+    const div = el("div", "bubble thought", this.root);
     el("span", "bubble-text", div, text);
-    this.bubbles.push({ div, target, height, until: performance.now() + TUNING.bark.show * 1000 });
+    this.bubbles.push({ div, target, height, until: performance.now() + TUNING.bark.show * 1000, speech: null });
   }
 
   /** Little sound waves over someone who is talking on voice chat (Section 10). */
@@ -63,6 +84,7 @@ export class Bubbles {
   }
 
   private remove(b: Bubble): void {
+    b.speech?.stop();
     b.div.remove();
     const i = this.bubbles.indexOf(b);
     if (i >= 0) this.bubbles.splice(i, 1);

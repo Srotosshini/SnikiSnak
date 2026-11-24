@@ -75,3 +75,16 @@ Decisions made where PLAN.md was unclear or the libraries changed. Each one pick
 5. **Saved settings.** Push-to-talk and the walkie-talkie choice are saved in the browser (`snikisnak.voice`). Per-player volume sliders and the mic device picker come with the Settings screen in Phase 5. `Voice.setPeerVolume` already works.
 6. **Reconnecting.** If a voice connection fails, it is torn down and set up again from scratch. A player who refreshes the page gets a new session id, and the others connect to them again automatically.
 7. **TURN server.** None, as planned. Same Wi-Fi works with STUN alone. If voice fails across different networks, use a Discord call as the backup (see `TESTING.md`).
+
+## Phase 5
+
+1. **All audio is made in code.** There are no sound or music files: the effects, blip voices and the three music layers are synthesized with the Web Audio API. It works offline and is your own handmade audio. Recorded sounds (your squeaks and foley) can replace any effect in Phase 8. Just add them to `CREDITS.md`.
+2. **Credits.** `CREDITS.md` follows the Section 16 template except the "Code written with Claude Code" line, per your standing instructions.
+3. **Blips that fit.** Section 12's note lengths make long Crow lines take about 9 s, longer than their cutscene slot or the 2.2 s bark bubble. Long lines are spoken a little faster to fit. Short lines sound exactly as the table says.
+4. **Cutscene.** I added `flow.cutscene: 86` to `tuning.ts`. It plays once per room, when the heist starts at Level 1; starting at another level skips it. The visuals are simple, as Phase 5 allows: rooftop camera shots, paper overlays and a cat silhouette. Kiwi turning grey only shows in her line's stage direction.
+5. **Bark queue.** A bark that hits a cooldown waits up to 5 s instead of being dropped, so "I'm in a jar. Again." still plays after "He SEES me".
+6. **Situation cards.** The first squeak, stir, sighting (the cone card) and jar in a run each send a card. Cards you've seen don't show again; Settings has "Reset tutorial cards".
+7. **Pings** (keys 1–4) are in, because players without a mic need them. Off-screen ping arrows aren't done yet.
+8. **Draw calls.** Level 1 takes about 177 draw calls with post-processing off, under the 300 limit. I didn't merge the furniture meshes yet, since it isn't needed.
+9. **Settings** are saved in this browser (`snikisnak.settings`): volumes, Low graphics and mic device. The voice settings stay in `snikisnak.voice`.
+10. **Not done yet** (later phases): the off-screen bell and ping markers, per-player voice volume sliders, and room ambiences (only the music plays during levels).

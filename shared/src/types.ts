@@ -103,7 +103,7 @@ export interface ServerMessages {
   rtc: { from: string; data: unknown };
   correct: { x: number; z: number; who?: string };
   card: { cardId: string };
-  complete: { stars: number; leftBehind: string[] };
+  complete: { stars: number; leftBehind: string[]; home: string[]; time: number };
   caught: Record<string, never>;
 }
 

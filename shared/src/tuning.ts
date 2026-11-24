@@ -35,9 +35,11 @@ export const TUNING = {
   plates: { window: 1.0 },
   loseDelay: 1.5,
   bark: { perCharacter: 4, global: 1.5, show: 2.2 },
-  // Level flow (Sections 1 and 9): the tin-can intro shows a title card, then
-  // the Crow's lines; the briefing lasts up to 20 s. Added in Phase 3.
-  flow: { introTitle: 2.5, introPerLine: 2.8, briefing: 20 },
+  // Level flow (Sections 1, 3 and 9): the tin-can intro shows a title card, then
+  // the Crow's lines; the briefing lasts up to 20 s; the opening cutscene is
+  // skipped when everyone holds Space for 1 s. A bark plays after 20 s idle;
+  // the cat shows at most one thought bubble every 3 s. Added in Phases 3 and 5.
+  flow: { introTitle: 2.5, introPerLine: 2.8, briefing: 20, cutscene: 86, skipHold: 1, idleBark: 20, catBubbleEvery: 3, pingEvery: 0.5 },
 } as const;
 
 export type Tuning = typeof TUNING;

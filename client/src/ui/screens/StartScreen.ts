@@ -1,12 +1,13 @@
 // Start screen (PLAN.md Section 13): your smuggler name on a luggage tag, and
-// paper tabs to host a heist or join one with a code. The live 3D rooftop and
-// the hand-drawn logo arrive in Phase 5.
+// paper tabs to host a heist, join one with a code, or open Settings. The live
+// 3D rooftop shows behind it (game/Rooftop.ts). Your hand-drawn logo goes here in Phase 8.
 
 import { type Screen, button, el, saveName, savedName } from "../dom";
 
 export interface StartActions {
   host(name: string): void;
   join(name: string): void;
+  settings?(): void;
 }
 
 export class StartScreen implements Screen {
@@ -33,6 +34,7 @@ export class StartScreen implements Screen {
     const tabs = el("div", "tabs", card);
     button("Host a heist", tabs, () => actions.host(name()), "paper-button primary");
     button("Join with code", tabs, () => actions.join(name()));
+    if (actions.settings) button("Settings", tabs, () => actions.settings?.());
     if (error) el("p", "error-card", card, error);
     input.focus();
     input.onkeydown = (e) => { if (e.key === "Enter") actions.host(name()); };

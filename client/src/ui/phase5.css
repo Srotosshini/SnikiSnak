@@ -1,0 +1,106 @@
+/* Phase 5: fonts, boil, click to begin, cutscene, tutorial cards, settings,
+   menu, results receipt, thought bubbles. Palette colours only. */
+
+h1, h2, h3, .logo, .title-name, .result-title, .char-name, .briefing-title, .level-name { font-family: var(--font-head); font-weight: 400; letter-spacing: 0.5px; }
+.boil, .logo, .title-name, .result-title, .stamp, .go-stamp { filter: url(#boil); }
+.paper-button { font-family: var(--font-head); font-weight: 400; font-size: 19px; }
+.paper-button:hover { filter: url(#boil); }
+.hud-label, .title-item, .receipt { font-family: var(--font-receipt); }
+
+/* Click to begin: a paper note taped to dark wood. */
+.click-to-begin { background: var(--midnight); }
+.begin-note {
+  position: relative; display: flex; flex-direction: column; gap: 6px; align-items: center; cursor: pointer;
+  padding: 30px 46px; font: inherit; color: var(--ink); transform: rotate(-2deg);
+}
+.begin-note:hover { transform: rotate(-1deg) scale(1.03); }
+.begin-text { font-family: var(--font-head); font-size: 42px; }
+.begin-sub { font-size: 13px; }
+
+/* Start screen sits over the 3D rooftop. */
+.start-screen { background: transparent; }
+.start-card .logo { font-size: 64px; }
+
+/* Modal screens (settings, menu). */
+.modal { background: rgba(29, 35, 64, 0.55); z-index: 20; }
+.settings-card, .menu-card { width: min(460px, 100%); padding: 20px 26px; max-height: 92vh; overflow: auto; }
+.settings-card h2, .menu-card h2 { margin: 0 0 10px; font-size: 30px; }
+.slider-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+.slider-label { width: 90px; font-size: 14px; }
+.pencil-slider { flex: 1; accent-color: var(--ink); height: 4px; }
+.check-row { display: block; margin: 8px 0; font-size: 14px; }
+.controls { width: 100%; border-collapse: collapse; font-size: 13px; }
+.controls td { border-bottom: 1px dashed var(--ink); padding: 3px 4px; }
+.controls td.key { font-family: var(--font-receipt); white-space: nowrap; }
+.menu-buttons { display: flex; flex-direction: column; gap: 10px; align-items: stretch; margin: 10px 0; }
+.controls-details summary { cursor: pointer; font-weight: 700; margin: 8px 0; }
+
+/* Tutorial cards: top-left, taped. */
+.card-slot { position: fixed; top: 16px; left: 16px; z-index: 6; pointer-events: none; }
+.tutorial-card { position: relative; max-width: 290px; padding: 12px 16px 8px; transform: rotate(-2deg); animation: card-in 0.25s ease-out; }
+.tc-text { font-size: 15px; font-weight: 700; }
+.tc-hint { font-size: 10px; margin-top: 4px; opacity: 0.7; }
+@keyframes card-in { from { transform: translateY(-30px) rotate(-6deg); opacity: 0; } to { transform: rotate(-2deg); opacity: 1; } }
+/* The level label moves down a little when a tutorial card is showing on the left; the label is on the right, so they don't clash. */
+
+/* Tin-can intro. */
+.tin-can { position: relative; padding-left: 70px; }
+.can-portrait {
+  position: absolute; left: 0; top: 10px; width: 56px; height: 64px; border: 2.5px solid var(--ink);
+  border-radius: 6px 6px 10px 10px; background: var(--plaster, #c9b8a6);
+  background-image: repeating-linear-gradient(0deg, transparent 0 8px, rgba(43, 29, 22, 0.25) 8px 10px);
+}
+.can-crow { position: absolute; left: 13px; top: 12px; width: 30px; height: 34px; border-radius: 50% 50% 45% 45%; background: var(--ink); }
+.can-crow::before { content: ""; position: absolute; left: 6px; top: -7px; width: 18px; height: 8px; background: var(--gold); border: 2px solid var(--ink); border-radius: 2px; }
+.can-crow::after { content: ""; position: absolute; left: 22px; top: 12px; border-left: 14px solid #8a8f99; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+
+/* Cutscene. */
+.cutscene { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+.letterbox { position: absolute; left: 0; right: 0; height: 11vh; background: var(--paper); border: 2.5px solid var(--ink); }
+.letterbox.top { top: -3px; transform: rotate(-0.4deg); }
+.letterbox.bottom { bottom: -3px; transform: rotate(0.4deg); }
+.cut-bubble { left: 50%; right: auto; bottom: 14vh; top: auto; transform: translateX(-50%) rotate(-0.5deg); max-width: min(720px, 92vw); padding: 10px 18px; font-size: 19px; }
+.cut-bubble::before { display: none; }
+.cut-who { display: block; font-family: var(--font-head); font-size: 16px; }
+.cut-bubble[data-who="crow"] .cut-who { color: var(--crow-sheen); }
+.cut-skip { position: absolute; right: 16px; bottom: calc(11vh + 8px); font-size: 13px; color: var(--paper); text-shadow: 0 1px 0 var(--ink); }
+.cut-skip.holding { font-weight: 700; color: var(--cheese); }
+.cut-stage { position: absolute; inset: 11vh 0; display: flex; align-items: center; justify-content: center; }
+.name-cards { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+.name-card { position: relative; padding: 14px 22px; text-align: center; transform: rotate(-3deg); opacity: 0; animation: stamp-in 0.3s ease-out forwards; }
+.name-card:nth-child(2) { transform: rotate(2deg); }
+.nc-name { font-family: var(--font-head); font-size: 40px; }
+.nc-tag { font-size: 16px; }
+@keyframes stamp-in { from { opacity: 0; transform: scale(1.6) rotate(-8deg); } to { opacity: 1; } }
+.receipt {
+  background: var(--paper); border: 2.5px solid var(--ink); padding: 12px 18px; font-size: 14px; color: var(--ink);
+  background-image: repeating-linear-gradient(180deg, transparent 0 22px, rgba(43, 29, 22, 0.06) 22px 23px);
+}
+.receipt-line { white-space: pre; min-height: 1.2em; }
+.receipt-line.crayon { font-family: var(--font-head); font-size: 20px; color: var(--jam); transform: rotate(-3deg); }
+.cut-list { max-height: 66vh; overflow: hidden; animation: unroll 4s ease-out forwards; transform-origin: top; }
+@keyframes unroll { from { max-height: 0; } to { max-height: 66vh; } }
+.cut-title { text-align: center; color: var(--paper); text-shadow: 3px 3px 0 var(--ink); animation: stamp-in 0.6s ease-out forwards; }
+.title-big { font-family: var(--font-head); font-size: clamp(56px, 12vw, 120px); line-height: 1; }
+.title-small { font-family: var(--font-head); font-size: clamp(22px, 4vw, 40px); }
+
+/* Thought bubbles: little clouds. */
+.bubble.thought { border-radius: 50%; padding: 8px 16px; font-style: italic; }
+.bubble.thought::after { width: 10px; height: 10px; border: 2.5px solid var(--ink); border-radius: 50%; bottom: -16px; transform: translateX(-50%); }
+.bubble-text { white-space: pre-wrap; }
+
+/* Results: the receipt and the stamp. */
+.hud-result { max-height: 90vh; overflow: auto; }
+.result-receipt { margin: 0 auto 6px; text-align: left; display: inline-block; font-size: 13px; }
+.hud-result .star.stamped { animation: stamp-in 0.25s ease-out; }
+.jar-sketch { width: 220px; height: 110px; display: block; margin: 0 auto -40px; }
+.jar-line { fill: rgba(243, 231, 207, 0.4); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+.jar-shine { stroke: var(--paper); stroke-width: 3; stroke-linecap: round; }
+.hud-result .stamp { opacity: 0; transform: rotate(-6deg) scale(2); transition: transform 0.18s ease-in, opacity 0.18s; }
+.hud-result .stamp.down { opacity: 1; transform: rotate(-6deg) scale(1); }
+
+/* Low screens: keep the cutscene bubble readable. */
+@media (max-height: 520px) {
+  .letterbox { height: 7vh; }
+  .cut-bubble { bottom: 9vh; font-size: 15px; }
+}

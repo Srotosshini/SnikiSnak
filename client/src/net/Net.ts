@@ -28,7 +28,7 @@ interface MapView<T> {
   forEach(cb: (value: T, key: string) => void): void;
 }
 export interface HeistView {
-  phase: string; level: number; run: number; timer: number; hostId: string; code: string; solo: boolean;
+  phase: string; level: number; run: number; timer: number; skipping: number; hostId: string; code: string; solo: boolean;
   exitReady: boolean; exitHold: number; anyoneJarred: boolean; stars: number;
   players: MapView<PlayerView>;
   cat: CatView;

@@ -138,6 +138,38 @@ describe("heist room", () => {
       await waitFor(() => room.state.players.get(a.sessionId)?.micOff === false);
     });
 
+    it("Level 1 starts with the opening cutscene, skipped when everyone holds Space for 1 s", async () => {
+      const a = await colyseus.sdk.create("heist", {});
+      const b = await colyseus.sdk.joinById(a.roomId, {});
+      const c = await colyseus.sdk.joinById(a.roomId, {});
+      const room = colyseus.getRoomById(a.roomId) as unknown as HeistRoom;
+      await waitFor(() => room.state.players.size === 3);
+      a.send("role", { role: "kiwi" }); b.send("role", { role: "mochi" }); c.send("role", { role: "pip" });
+      a.send("ready", { ready: true }); b.send("ready", { ready: true }); c.send("ready", { ready: true });
+      await waitFor(() => room.canStart());
+      a.send("start", {});
+      await waitFor(() => room.state.phase === "cutscene");
+      a.send("skip", { holding: true }); b.send("skip", { holding: true });
+      await pause(1300);
+      assert.strictEqual(room.state.phase, "cutscene", "one player isn't holding");
+      c.send("skip", { holding: true });
+      await waitFor(() => room.state.phase === "intro", 3000);
+      assert.strictEqual(room.state.level, 1);
+    });
+
+    it("relays pings, at most one per player every 0.5 s", async () => {
+      const a = await colyseus.sdk.create("heist", {});
+      const b = await colyseus.sdk.joinById(a.roomId, {});
+      const pings: Array<{ from: string; kind: number }> = [];
+      b.onMessage("ping", (m: { from: string; kind: number }) => pings.push(m));
+      a.send("ping", { kind: 2, x: 5, z: 5 });
+      a.send("ping", { kind: 3, x: 5, z: 5 });
+      a.send("ping", { kind: 9 as unknown as 1, x: 5, z: 5 }); // not a real ping kind: ignored
+      await waitFor(() => pings.length === 1);
+      await pause(100);
+      assert.deepStrictEqual(pings.map((p) => [p.from, p.kind]), [[a.sessionId, 2]]);
+    });
+
     it("the host picks the first level in the lobby", async () => {
       const a = await colyseus.sdk.create("heist", {});
       const b = await colyseus.sdk.joinById(a.roomId, {});

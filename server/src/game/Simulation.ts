@@ -12,7 +12,8 @@
 
 import {
   type AbilityBark, type Carry, type Grid, type LevelDef, type NoiseEvent, type Role, type Tile,
-  type Vec2, ABILITY_BARKS, StepTimer, TUNING, WRONG_ROLE_BARKS, charAt, circleOverlapsSolid,
+  type Vec2, type BarkEvent, ABILITY_BARKS, CAT_BUBBLES, EVENT_BARKS, SITUATION_CARDS, StepTimer, TUNING,
+  WRONG_ROLE_BARKS, charAt, circleOverlapsSolid, pick,
   covered, exitZone, footstepNoise, hiddenInHideSpot, inHideSpot, inZone, interactTarget,
   isMoveAllowed, isWalkableForPlayer, parseMap, playerSolid, raycast, squeakNoise, tileCenter,
   worldToTile,
@@ -32,7 +33,9 @@ export interface SimEvents {
   toast(playerId: string, text: string): void;
   sfx(name: string, at?: Vec2): void;
   bark(who: Role, lineId: string): void;
-  complete(stars: number, leftBehind: string[]): void;
+  /** A tutorial card, the first time its situation happens. */
+  card(cardId: string): void;
+  complete(stars: number, leftBehind: string[], home: string[], time: number): void;
   caught(): void;
 }
 
@@ -65,6 +68,9 @@ interface PlayerRuntime {
   toldNeedFriend: boolean;
   /** Id of the Kiwi covering this player, if any. */
   coveredBy: string;
+  wasHidden: boolean;
+  /** Sim time of the last move (for the idle bark). */
+  idleSince: number;
 }
 
 interface DoorRuntime { lastHeldAt: number; clickIn: number; }
@@ -81,6 +87,8 @@ const SOLID_CHECK_SLACK = 0.02;
 const MAX_MOVE_DT = 0.15;
 /** Section 4.6: a jarred player can wobble the jar every 3 s. */
 const WOBBLE_COOLDOWN = 3;
+/** How long a queued bark may wait for the cooldowns before it is dropped. */
+const BARK_MAX_WAIT = TUNING.bark.perCharacter + 1;
 
 export const TOASTS = {
   needFriend: "Need one more friend!",
@@ -101,6 +109,11 @@ export class Simulation {
   private loseFor = 0;
   private readonly barkAt = new Map<string, number>();
   private lastBarkAt = -Infinity;
+  /** Barks waiting for the cooldowns (Section 9, tick step 10). */
+  private barkQueue: Array<{ who: Role; lineId: string; at: number }> = [];
+  private prevCatState = "";
+  private lastBubbleAt = -Infinity;
+  private readonly cardsShown = new Set<string>();
 
   constructor(
     private readonly state: HeistState,
@@ -136,6 +149,7 @@ export class Simulation {
       tileX: t.x, tileY: t.y, steps: new StepTimer(), lastCorrectionAt: -Infinity,
       holdE: false, holdF: false, holdQ: false, action: null, vent: null,
       wobbleReadyAt: 0, invulnerableUntil: 0, wasInHide: false, toldNeedFriend: false, coveredBy: "",
+      wasHidden: false, idleSince: this.time,
     });
   }
 
@@ -201,7 +215,7 @@ export class Simulation {
     if (p.carrying) {
       // Put it down gently: silent.
       const item = this.state.items.get(p.carrying);
-      if (item) { item.carriedBy = ""; item.x = p.x; item.z = p.z; }
+      if (item) { item.carriedBy = ""; item.x = p.x; item.z = p.z; this.events.sfx("putdown", p); }
       p.carrying = "";
       return;
     }
@@ -217,7 +231,12 @@ export class Simulation {
     switch (target.kind) {
       case "item": {
         const item = this.state.items.get(target.id);
-        if (item) { item.carriedBy = p.id; p.carrying = item.id; }
+        if (item) {
+          item.carriedBy = p.id;
+          p.carrying = item.id;
+          this.events.sfx("pickup", item);
+          if (item.id === "item") this.eventBark(role, "grab");
+        }
         break;
       }
       case "vent":
@@ -293,6 +312,10 @@ export class Simulation {
       if (!rt) continue;
       p.hidden = this.isHidden(p, rt);
       const inHide = !p.jarred && inHideSpot(this.grid, p);
+      if (p.hidden && !rt.wasHidden && inHide) this.eventBark(p.role as Role, "hiding");
+      rt.wasHidden = p.hidden;
+      if (this.isMoving(rt) || p.jarred) rt.idleSince = this.time;
+      else if (this.time - rt.idleSince >= TUNING.flow.idleBark) { rt.idleSince = this.time; this.eventBark(p.role as Role, "idle"); }
       if (inHide && !rt.wasInHide && p.seen >= TUNING.detect.question) {
         // Ducked into a hide spot while he was looking: he'll come and paw at it.
         this.brain.rememberHide(tileCenter(worldToTile(p.x, p.z)));
@@ -326,6 +349,7 @@ export class Simulation {
     const ev = this.brain.tick(dt, targets);
     for (const p of players) p.seen = this.brain.meters.get(p.id) ?? 0;
     if (ev.pat) this.events.sfx("patpat", ev.pat);
+    this.catMoments(players);
     this.syncCat();
 
     // 7. Catch.
@@ -336,6 +360,9 @@ export class Simulation {
 
     // 9. Win and lose.
     this.checkEnd(players, dt);
+
+    // 10. Barks.
+    this.processBarks();
   }
 
   private isMoving(rt: PlayerRuntime | undefined): boolean {
@@ -401,6 +428,8 @@ export class Simulation {
       if (charAt(this.grid, t.x, t.y) === "~") {
         const n = covered(squeakNoise(sneaking), isCovered);
         this.queuedNoise.push({ x: t.x + 0.5, z: t.y + 0.5, ...n, kind: "squeak" });
+        this.eventBark(p.role as Role, "squeak");
+        this.situationCard(SITUATION_CARDS.squeak);
       }
     }
   }
@@ -541,6 +570,10 @@ export class Simulation {
       p.carrying = "";
     }
     this.events.sfx("jarClink", spot);
+    this.eventBark(p.role as Role, "jarred");
+    const friends = [...this.state.players.values()].filter((o) => o.id !== p.id && !o.jarred && o.connected);
+    if (friends.length) this.eventBark(pick(friends).role as Role, "teammateJarred");
+    this.situationCard(SITUATION_CARDS.jarred);
   }
 
   private updateRescues(players: PlayerState[], dt: number): void {
@@ -565,6 +598,7 @@ export class Simulation {
         if (rt) { rt.invulnerableUntil = this.time + TUNING.rescue.invuln; rt.acceptedAt = this.time; }
         this.queueNoise(jarred, TUNING.noise.jarBreak, "jarBreak");
         this.events.sfx("jarPop", { x: jarred.x, z: jarred.z });
+        this.eventBark(jarred.role as Role, "rescued");
       }
     }
   }
@@ -597,12 +631,60 @@ export class Simulation {
   // Barks (Section 3): one per character every 4 s, one anywhere every 1.5 s.
   // -------------------------------------------------------------------------
 
+  /** Queue a bark; it plays when the cooldowns allow (one per character every 4 s, one anywhere every 1.5 s). */
   bark(who: Role, lineId: string): void {
-    const last = this.barkAt.get(who) ?? -Infinity;
-    if (this.time - last < TUNING.bark.perCharacter || this.time - this.lastBarkAt < TUNING.bark.global) return;
-    this.barkAt.set(who, this.time);
+    // One waiting bark per character is enough; a newer one replaces it.
+    this.barkQueue = this.barkQueue.filter((b) => b.who !== who);
+    this.barkQueue.push({ who, lineId, at: this.time });
+    this.processBarks();
+  }
+
+  private processBarks(): void {
+    // A bark that has waited longer than the per-character cooldown plus a moment is no longer news.
+    this.barkQueue = this.barkQueue.filter((b) => this.time - b.at <= BARK_MAX_WAIT);
+    if (this.time - this.lastBarkAt < TUNING.bark.global) return;
+    const i = this.barkQueue.findIndex((b) => this.time - (this.barkAt.get(b.who) ?? -Infinity) >= TUNING.bark.perCharacter);
+    if (i < 0) return;
+    const [b] = this.barkQueue.splice(i, 1);
+    this.barkAt.set(b.who, this.time);
     this.lastBarkAt = this.time;
-    this.events.bark(who, lineId);
+    this.events.bark(b.who, b.lineId);
+  }
+
+  private eventBark(who: Role, event: BarkEvent): void {
+    const lines = EVENT_BARKS[event]?.[who];
+    if (lines?.length) this.bark(who, pick(lines));
+  }
+
+  /** Send a tutorial card the first time its situation happens in this run. */
+  private situationCard(cardId: string): void {
+    if (this.cardsShown.has(cardId)) return;
+    this.cardsShown.add(cardId);
+    this.events.card(cardId);
+  }
+
+  /** Thought bubbles and barks when the cat changes state (Section 3). */
+  private catMoments(players: PlayerState[]): void {
+    const state = this.brain.state;
+    if (state === this.prevCatState) return;
+    const prev = this.prevCatState;
+    this.prevCatState = state;
+    const lines = CAT_BUBBLES[state];
+    if (lines && this.time - this.lastBubbleAt >= TUNING.flow.catBubbleEvery) {
+      this.lastBubbleAt = this.time;
+      this.state.cat.bubble = pick(lines);
+      this.state.cat.bubbleSeq += 1;
+    }
+    if (state === "STIR") this.situationCard(SITUATION_CARDS.stir);
+    if (state === "INVESTIGATE" || state === "CHASE") this.situationCard(SITUATION_CARDS.spotted);
+    if (state === "CHASE") {
+      const target = this.state.players.get(this.brain.targetId);
+      if (target) this.eventBark(target.role as Role, "spotted");
+    }
+    if (state === "GIVE_UP" || (prev === "SEARCH" && state === "RETURN")) {
+      const free = players.filter((p) => !p.jarred && p.connected);
+      if (free.length) this.eventBark(pick(free).role as Role, "catGivesUp");
+    }
   }
 
   private abilityBark(who: Role, event: AbilityBark): void {
@@ -668,7 +750,11 @@ export class Simulation {
     const stars = allHome ? (this.state.anyoneJarred ? 2 : 3) : 1;
     this.state.stars = stars;
     const leftBehind = players.filter((p) => !home.includes(p)).map((p) => p.name);
-    this.events.complete(stars, leftBehind);
+    if (leftBehind.length && home.length) {
+      const lines = EVENT_BARKS.leftBehind[home[0].role as Role];
+      if (lines?.length) this.events.bark(home[0].role as Role, pick(lines));
+    }
+    this.events.complete(stars, leftBehind, home.map((p) => p.name), this.time);
   }
 
   private syncCat(): void {

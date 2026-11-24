@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 5 — Story, sound and feel for the LAN Party (2026-11-24)
+
+- **Screens:**
+  - "Click to begin" note, which unlocks audio.
+  - Start screen over a live 3D rooftop: Queen Corvina on her tin-can throne, the three smugglers, string lights, the Big House with a cat silhouette crossing a lit window, and a slowly circling camera.
+  - Settings tab, and the Esc menu in rooms (Settings, Controls, Leave room).
+- **Opening cutscene "The Royal Errand"** (86 s, once before Level 1):
+  - Camera shots on the rooftop, a speech bubble for every line, the name cards, and the list unrolling (with Mochi's crayon line).
+  - Then the cat silhouette and the title card.
+  - Skipped when everyone holds Space for 1 s, with "(n/3)" shown.
+- **Level intros:** a tin-can portrait, each line spoken, then the level's tutorial cards.
+- **Tutorial cards:** top-left, one at a time, dismissed after 6 s or with Enter, and remembered once seen. The first squeak, stir, sighting and jar also bring up cards.
+- **Barks and thought bubbles:**
+  - Every in-game bark from Section 3: spotted, jarred, teammate jarred, rescued, grab, hiding, squeak, cat gives up, left behind and idle. Queued barks wait for the cooldowns.
+  - Sir Crumbs's thought bubbles on state changes (at most one every 3 s), with a chirp, meow or hiss.
+- **Blip voices** from the Section 12 table: text appears letter by letter in time, and long lines are said a little faster to fit their slot.
+- **Sound effects:** about 35, all made in code (footsteps, squeak, bell, purr, chirp, meow, hiss, whoosh, pat pat, jars, items, locks, doors, vents, pings, UI). Positional sounds get quieter with distance.
+- **Music:** layered calm, tension and chase music made in code, crossfading on the cat's mood, plus the kazoo fanfare, the level-complete jingle and the "Caught!" sting.
+- **Results:** the level-complete receipt prints line by line (level, time, item, who made it home), the stars stamp on, and the Crow's line types out. "Caught!" is an ink stamp over a sketch of two jars.
+- **Pings** on keys 1–4 at the mouse: Go here, Cat!, Wait, Help, each with a stamp and a sound.
+- **Art pass:**
+  - Self-hosted fonts and the "boil" wobble on titles.
+  - Post-processing: tilt-shift, bloom, colour grade, vignette and grain.
+  - Lamp-pool decals with bulbs, fading moon shafts, and 200 dust motes.
+  - Low graphics (no post-processing or shadows, pixel ratio 1) in Settings, or `?low=1`.
+- `CREDITS.md`.
+- **Tests:** every bark, bubble and intro line id has words, and every card exists. Server tests cover barks, cards, bubbles, the cutscene skip and pings (52).
+
 ## Phase 4 — Voice chat and LAN (2026-11-24)
 
 - `client/src/net/Voice.ts`: a WebRTC mesh between the 3 browsers.

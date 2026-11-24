@@ -4,13 +4,15 @@
 //   bottom left  three teammate portraits with status (yours bigger, with your detection meter)
 //   bottom centre the interaction prompt with its hold progress
 //   bottom right your two ability cards with their keys
-// plus toasts and the "Caught!" / "Level complete" cards with the host's buttons.
-// The tutorial card slot, talking icons and the paper-and-marker art pass come in Phases 4–5.
+// plus toasts, and the results: "Level complete" prints as a receipt line by
+// line with the stars stamped on one at a time; "Caught!" is a big ink stamp
+// over a sketch of two jars. The Crow's line is spoken with her blip voice.
 
 import { LEVELS, ROLES, type Role } from "@snikisnak/shared";
 import { line } from "../content/script";
 import { CHARACTERS } from "../content/characters";
 import { el } from "./dom";
+import type { GameAudio } from "../audio";
 
 export interface Prompt {
   text: string;
@@ -24,8 +26,12 @@ export interface ResultInfo {
   kind: "caught" | "complete";
   stars: number;
   leftBehind: string[];
+  home: string[];
+  time: number;
   isHost: boolean;
   level: number;
+  levelName: string;
+  item: string | null;
 }
 
 export interface TeamMember {
@@ -91,10 +97,11 @@ export class Hud {
   private readonly voice: HTMLDivElement;
   private result: HTMLDivElement | null = null;
   private resultKey = "";
+  private resultTimers: number[] = [];
   private teamKey = "";
   private abilityRole: Role | "" = "";
 
-  constructor(parent: HTMLElement, private readonly onAction: (a: HudAction) => void) {
+  constructor(parent: HTMLElement, private readonly onAction: (a: HudAction) => void, private readonly sound: GameAudio | null = null) {
     this.root = el("div", "hud", parent);
     this.label = el("div", "card hud-label", this.root);
 
@@ -204,27 +211,72 @@ export class Hud {
     const key = info ? `${info.kind}:${info.stars}:${info.isHost}:${info.level}` : "";
     if (key === this.resultKey) return;
     this.resultKey = key;
+    for (const t of this.resultTimers) clearTimeout(t);
+    this.resultTimers = [];
     this.result?.remove();
     this.result = null;
     if (!info) return;
 
     const card = el("div", `card hud-result ${info.kind}`, this.root);
+    const later = (ms: number, fn: () => void): void => { this.resultTimers.push(window.setTimeout(fn, ms)); };
+    const crow = (id: string, parent: HTMLElement, at: number): void => {
+      const p = el("p", "crow", parent);
+      const text = line(id).text;
+      later(at, () => {
+        if (this.sound) this.sound.blips.speak("crow", text, (n) => { p.textContent = `"${text.slice(0, n)}"`; });
+        else p.textContent = `"${text}"`;
+      });
+    };
+
     if (info.kind === "caught") {
-      el("div", "stamp", card, "CAUGHT!");
-      el("p", "crow", card, line("results_caught").text);
+      const jars = svg("svg", { viewBox: "0 0 120 60", class: "jar-sketch" }, card);
+      for (const x of [30, 82]) {
+        svg("path", { d: `M${x - 18},55 Q${x - 20},12 ${x},10 Q${x + 20},12 ${x + 18},55 Z`, class: "jar-line" }, jars);
+        svg("line", { x1: x - 20, y1: 55, x2: x + 20, y2: 55, class: "jar-line" }, jars);
+        svg("line", { x1: x - 8, y1: 20, x2: x - 11, y2: 38, class: "jar-shine" }, jars);
+      }
+      const stamp = el("div", "stamp", card, "CAUGHT!");
+      later(150, () => { stamp.classList.add("down"); this.sound?.sfx.play("stamp", undefined, 1, "ui"); });
+      crow("results_caught", card, 700);
     } else {
-      el("div", "result-title", card, "Level complete");
+      const receipt = el("div", "receipt result-receipt", card);
+      const mins = Math.floor(info.time / 60), secs = Math.floor(info.time % 60);
+      const rows = [
+        "THE ROYAL SHOPPING LIST",
+        "--------------------------",
+        `LEVEL ${info.level}  ${info.levelName.toUpperCase()}`,
+        `TIME         ${mins}:${String(secs).padStart(2, "0")}`,
+        `ITEM         ${info.item ?? "Got in. Not eaten."}`,
+        `HOME         ${info.home.join(", ") || "-"}`,
+        ...(info.leftBehind.length ? [`LEFT BEHIND  ${info.leftBehind.join(", ")}`] : []),
+        "--------------------------",
+      ];
+      rows.forEach((text, i) => {
+        const row = el("div", "receipt-line", receipt, text);
+        row.style.visibility = "hidden";
+        later(i * 180, () => { row.style.visibility = "visible"; });
+      });
       const stars = el("div", "stars", card);
-      for (let i = 1; i <= 3; i++) stars.appendChild(starSvg(i <= info.stars));
-      el("p", "crow", card, line(`results_${Math.max(1, Math.min(3, info.stars))}`).text);
-      if (info.leftBehind.length) el("p", "left-behind", card, `Left behind: ${info.leftBehind.join(", ")}`);
+      const starAt = rows.length * 180 + 200;
+      for (let i = 1; i <= 3; i++) {
+        const st = starSvg(i <= info.stars);
+        st.style.visibility = "hidden";
+        stars.appendChild(st);
+        later(starAt + i * 350, () => {
+          st.style.visibility = "visible";
+          st.classList.add("stamped");
+          if (i <= info.stars) this.sound?.sfx.play("stamp", undefined, 0.8, "ui");
+        });
+      }
+      crow(`results_${Math.max(1, Math.min(3, info.stars))}`, card, starAt + 1400);
     }
+
     const buttons = el("div", "buttons", card);
     if (info.isHost) {
       const b = (label: string, a: HudAction, cls = "paper-button"): void => {
         const btn = el("button", cls, buttons, label);
         btn.type = "button";
-        btn.onclick = () => this.onAction(a);
+        btn.onclick = () => { this.sound?.sfx.play("pap", undefined, 1, "ui"); this.onAction(a); };
       };
       b("Retry", { type: "retry" });
       if (info.kind === "complete" && info.level < LEVELS.length) b("Next level", { type: "next" }, "paper-button primary");

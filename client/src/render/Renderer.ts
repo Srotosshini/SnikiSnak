@@ -3,9 +3,12 @@
 // Camera: perspective, 28° field of view, looking down at about 55° from the
 // south. It frames the whole room with a margin, and drifts gently toward the
 // local player: target = room centre blended 25% toward the player.
+// Screens like the rooftop can take the camera over with setManualCamera().
+// Post-processing runs unless Low graphics is on (which also turns off shadows).
 
 import * as THREE from "three";
 import { PALETTE } from "./palette";
+import { Post } from "./Post";
 
 const FOV = 28;
 const PITCH = THREE.MathUtils.degToRad(55);
@@ -34,6 +37,13 @@ export class Renderer {
   private targetPitch = PITCH;
   private readonly lookTarget = new THREE.Vector3();
   private readonly desiredTarget = new THREE.Vector3();
+  private readonly post: Post;
+  private lowGraphics = false;
+  private manual: ((camera: THREE.PerspectiveCamera, dt: number) => void) | null = null;
+  /** Frames per second, measured over the last half second. */
+  fps = 60;
+  private fpsFrames = 0;
+  private fpsTime = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -41,6 +51,7 @@ export class Renderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.scene.background = new THREE.Color(PALETTE.midnight);
+    this.post = new Post(this.renderer, this.scene, this.camera);
 
     window.addEventListener("resize", () => this.resize());
     this.resize();
@@ -72,6 +83,35 @@ export class Renderer {
     const drift = DRIFT + (1 - DRIFT) * (1 - this.zoom) / (1 - MIN_ZOOM);
     if (x === null || z === null) this.desiredTarget.set(cx, 0, cz);
     else this.desiredTarget.set(cx + (x - cx) * drift, 0, cz + (z - cz) * drift);
+  }
+
+  /** Low graphics (Section 11): no tilt-shift, bloom or shadows, and a pixel ratio of 1. */
+  setLowGraphics(low: boolean): void {
+    if (low === this.lowGraphics) return;
+    this.lowGraphics = low;
+    this.post.enabled = !low;
+    this.renderer.shadowMap.enabled = !low;
+    this.renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio, 2));
+    // Materials must recompile when shadows are switched.
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      for (const mat of Array.isArray(m) ? m : m ? [m] : []) mat.needsUpdate = true;
+    });
+    this.resize();
+  }
+
+  /** Let a screen (the rooftop, the cutscene) move the camera itself; null gives it back. */
+  setManualCamera(fn: ((camera: THREE.PerspectiveCamera, dt: number) => void) | null): void {
+    this.manual = fn;
+    if (!fn) {
+      this.camera.fov = FOV;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  /** How many draw calls the last frame took (Section 16: keep under 300). */
+  get drawCalls(): number {
+    return this.renderer.info.render.calls;
   }
 
   /** Briefing view: look almost straight down at the whole room. */
@@ -123,6 +163,7 @@ export class Renderer {
   private resize(): void {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.post.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.fitDistance();
@@ -132,13 +173,23 @@ export class Renderer {
   private frame(time: number): void {
     this.timer.update(time);
     const dt = Math.min(this.timer.getDelta(), 0.1);
+    this.fpsFrames++;
+    this.fpsTime += dt;
+    if (this.fpsTime >= 0.5) { this.fps = Math.round(this.fpsFrames / this.fpsTime); this.fpsFrames = 0; this.fpsTime = 0; }
     for (const cb of this.onFrame) cb(dt);
-    if (Math.abs(this.pitch - this.targetPitch) > 1e-4) {
-      this.pitch += (this.targetPitch - this.pitch) * Math.min(1, dt * 3);
-      this.fitDistance();
+    if (this.manual) {
+      this.manual(this.camera, dt);
+    } else {
+      if (Math.abs(this.pitch - this.targetPitch) > 1e-4) {
+        this.pitch += (this.targetPitch - this.pitch) * Math.min(1, dt * 3);
+        this.fitDistance();
+      }
+      this.lookTarget.lerp(this.desiredTarget, 1 - Math.exp(-FOLLOW_RATE * dt));
+      this.placeCamera();
     }
-    this.lookTarget.lerp(this.desiredTarget, 1 - Math.exp(-FOLLOW_RATE * dt));
-    this.placeCamera();
-    this.renderer.render(this.scene, this.camera);
+    // Less tilt-shift blur when looking straight down in the briefing.
+    this.post.setTiltStrength(this.targetPitch === PITCH || this.manual ? 3 : 1);
+    if (this.post.enabled) this.post.render(dt);
+    else this.renderer.render(this.scene, this.camera);
   }
 }

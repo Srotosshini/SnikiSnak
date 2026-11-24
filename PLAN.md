@@ -40,7 +40,7 @@ SnikiSnak (Midnight Sneaky Snack) is a 3-player online co-op stealth heist in th
 2. **Tiny animals, giant house.** A miniature diorama look: huge furniture, warm lamp pools, cold moonlight.
 3. **Tension you can read.** You can always see the cat's vision cone and hear its collar bell. Getting caught is funny, not cruel.
 4. **Talk to win.** Voice chat plus quick pings. Levels are built so that one player must call out timing to another.
-5. **Handmade, not generated.** Paper-and-marker UI, wobbly outlines, silly blip voices, real jokes.
+5. **Handmade, not generated.** 3d indie UI,  silly blip voices, real jokes.
 
 **Core loop for one level**
 

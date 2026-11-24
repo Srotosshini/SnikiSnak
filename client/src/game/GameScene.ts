@@ -5,7 +5,8 @@
 // - moves the characters this client controls with LocalController,
 // - draws everyone else (and the cat) 100 ms in the past with Interp,
 // - draws items, jars, the cat's cone, noise rings, barks and the HUD,
-// - shows the intro and the briefing (top-down camera, paw prints, exit arrow).
+// - shows the intro and the briefing (top-down camera, paw prints, exit arrow),
+// - plays the sounds and music, tutorial cards and pings.
 // A new GameScene is made every time a level starts or restarts.
 
 import * as THREE from "three";
@@ -16,7 +17,7 @@ import {
 import type { HeistRoom, HeistView, PlayerView } from "../net/Net";
 import { INTERP_DELAY_MS, Interp } from "../net/Interp";
 import type { Renderer } from "../render/Renderer";
-import { buildLights } from "../render/Lights";
+import { LightRig } from "../render/Lights";
 import { Effects } from "../render/Effects";
 import { PALETTE } from "../render/palette";
 import { toonMesh } from "../render/Toon";
@@ -31,6 +32,9 @@ import { Bubbles } from "../ui/Bubbles";
 import { FlowOverlay } from "../ui/FlowOverlay";
 import { CHARACTERS } from "../content/characters";
 import { hasLine, line } from "../content/script";
+import { audio, type GameAudio } from "../audio";
+import { Cards } from "../ui/Cards";
+import { Pings } from "./Pings";
 
 interface Entity {
   id: string;
@@ -72,6 +76,18 @@ export class GameScene {
   private readonly removeFrame: () => void;
   private readonly unsubscribe: Array<() => void> = [];
   private leftBehind: string[] = [];
+  private home: string[] = [];
+  private finishTime = 0;
+  private readonly sound: GameAudio = audio();
+  private readonly lights: LightRig;
+  private readonly cards: Cards;
+  private readonly pings = new Pings();
+  private catBubbleSeq = 0;
+  private lastCatPos: { x: number; z: number } | null = null;
+  private cardsShownForIntro = false;
+  private mouse = { x: 0, y: 0 };
+  private readonly onMouse = (e: MouseEvent): void => { this.mouse = { x: e.clientX, y: e.clientY }; };
+  private readonly onPingKey = (e: KeyboardEvent): void => this.pingKey(e);
   /** Player ids currently talking on voice chat. */
   private readonly talking = new Set<string>();
   private t = 0;
@@ -93,7 +109,8 @@ export class GameScene {
     }
     this.cat = new CatView(this.grid, this.level.cat.fov);
     this.buildBriefingExtras();
-    this.root.add(built.root, buildLights(this.level.lights, built.width, built.depth), this.effects.root, this.cat.root, this.briefingExtras);
+    this.lights = new LightRig(this.level.lights, built.width, built.depth);
+    this.root.add(built.root, this.lights.root, this.effects.root, this.cat.root, this.briefingExtras, this.pings.root);
     renderer.scene.add(this.root);
     renderer.frameRoom(built.width, built.depth);
 
@@ -107,10 +124,16 @@ export class GameScene {
       state.solo, () => this.openDoors(), (id) => this.markLocal(id),
     );
 
-    this.hud = new Hud(opts.uiRoot, (a) => room.send(a.type, a.type === "select" ? { level: a.level } : {}));
+    this.hud = new Hud(opts.uiRoot, (a) => room.send(a.type, a.type === "select" ? { level: a.level } : {}), this.sound);
     this.hud.setLevel(`Level ${this.level.id} — ${this.level.name}`, this.level.listItem?.name ?? null);
-    this.bubbles = new Bubbles(opts.uiRoot);
-    this.flow = new FlowOverlay(opts.uiRoot, this.level, () => room.send("ready", { ready: true }));
+    this.bubbles = new Bubbles(opts.uiRoot, this.sound.blips);
+    this.cards = new Cards(opts.uiRoot, this.sound);
+    this.flow = new FlowOverlay(opts.uiRoot, this.level, () => { this.sound.sfx.play("pap", undefined, 1, "ui"); room.send("ready", { ready: true }); },
+      this.sound, () => this.showIntroCards());
+    this.catBubbleSeq = state.cat.bubbleSeq;
+    window.addEventListener("mousemove", this.onMouse);
+    window.addEventListener("keydown", this.onPingKey);
+    this.sound.music.start();
 
     this.sync(state);
     this.markLocal(this.controller.controlled);
@@ -118,13 +141,26 @@ export class GameScene {
       room.onMessage("noise", (m: ServerMessages["noise"]) => {
         this.effects.noiseRing(m.x, m.z, m.radius, m.kind);
         this.dev?.logNoise(m.kind, m.radius);
+        this.noiseSound(m);
       }),
       room.onMessage("correct", (m: ServerMessages["correct"]) => this.controller.onCorrect(m)),
       room.onMessage("toast", (m: ServerMessages["toast"]) => this.hud.toast(m.text)),
       room.onMessage("bark", (m: ServerMessages["bark"]) => this.showBark(m.who, m.lineId)),
-      room.onMessage("complete", (m: ServerMessages["complete"]) => { this.leftBehind = m.leftBehind; }),
-      room.onMessage("caught", () => undefined),
-      room.onMessage("sfx", () => undefined), // sounds arrive in Phase 5
+      room.onMessage("complete", (m: ServerMessages["complete"]) => {
+        this.leftBehind = m.leftBehind;
+        this.home = m.home ?? [];
+        this.finishTime = m.time ?? 0;
+        this.sound.music.jingle();
+      }),
+      room.onMessage("caught", () => { this.sound.music.sting(); }),
+      room.onMessage("sfx", (m: ServerMessages["sfx"]) => {
+        this.sound.sfx.play(m.name, m.x !== undefined && m.z !== undefined ? { x: m.x, z: m.z } : undefined);
+      }),
+      room.onMessage("card", (m: ServerMessages["card"]) => this.cards.show([m.cardId])),
+      room.onMessage("ping", (m: ServerMessages["ping"]) => {
+        this.pings.add(m.kind, m.x, m.z);
+        this.sound.sfx.play(`ping${m.kind}`, { x: m.x, z: m.z }, 1, "ui");
+      }),
     );
 
     this.dev = opts.debug ? new DevPanel(this.grid, opts.uiRoot, () => this.debugInfo()) : null;
@@ -217,7 +253,61 @@ export class GameScene {
   private showBark(who: Role, lineId: string): void {
     if (!hasLine(lineId)) return;
     const e = [...this.entities.values()].find((x) => x.character.role === who);
-    if (e) this.bubbles.say(e.character.root, HEAD_HEIGHT[who], CHARACTERS[who].name, line(lineId).text);
+    if (e) this.bubbles.say(e.character.root, HEAD_HEIGHT[who], CHARACTERS[who].name, line(lineId).text, who);
+  }
+
+  /** The level's tutorial cards, after the intro lines (or when the intro is skipped). */
+  private showIntroCards(): void {
+    if (this.cardsShownForIntro) return;
+    this.cardsShownForIntro = true;
+    this.cards.show(this.level.cards);
+  }
+
+  /** The sound of a server noise: footsteps, squeaks, lock clicks, crashes. */
+  private noiseSound(m: ServerMessages["noise"]): void {
+    const at = { x: m.x, z: m.z };
+    switch (m.kind) {
+      case "step": this.sound.sfx.play(m.radius >= 4 ? "stepHeavy" : "step", at, m.radius < 1 ? 0.4 : 0.8); break;
+      case "squeak": this.sound.sfx.play("squeak", at); break;
+      case "lockClick": this.sound.sfx.play("lockClick", at); break;
+      case "crash": this.sound.sfx.play("crash", at); break;
+      case "wobble": this.sound.sfx.play("wobble", at); break;
+      default: break;
+    }
+  }
+
+  /** Keys 1-4: ping at the mouse cursor. */
+  private pingKey(e: KeyboardEvent): void {
+    if (e.repeat || !["Digit1", "Digit2", "Digit3", "Digit4"].includes(e.code)) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+    const phase = this.room.state.phase;
+    if (phase !== "playing" && phase !== "briefing") return;
+    const p = this.pings.floorPoint(this.mouse.x, this.mouse.y, this.renderer.camera);
+    if (!p) return;
+    const msg: Record<string, unknown> = { kind: Number(e.code.slice(5)), x: p.x, z: p.z };
+    if (this.room.state.solo) msg.who = this.controller.controlled;
+    this.room.send("ping", msg);
+  }
+
+  /** Thought bubbles, the collar bell, the purr and the music follow the cat. */
+  private catAudio(dt: number, suspicious: boolean): void {
+    const c = this.room.state.cat;
+    if (c.bubbleSeq !== this.catBubbleSeq) {
+      this.catBubbleSeq = c.bubbleSeq;
+      if (c.bubble && hasLine(c.bubble)) this.bubbles.think(this.cat.anchor, 2.4, line(c.bubble).text);
+      const at = { x: c.x, z: c.z };
+      if (c.state === "STIR" || c.state === "INVESTIGATE" || c.state === "SEARCH") this.sound.sfx.play("chirp", at);
+      if (c.state === "CHASE") { this.sound.sfx.play("meow", at); this.sound.sfx.play("hiss", at, 0.6); }
+      if (c.state === "POUNCE") this.sound.sfx.play("whoosh", at);
+    }
+    const pos = this.cat.position;
+    const moved = this.lastCatPos ? Math.hypot(pos.x - this.lastCatPos.x, pos.z - this.lastCatPos.z) / Math.max(dt, 1e-3) : 0;
+    this.lastCatPos = { x: pos.x, z: pos.z };
+    const playing = this.room.state.phase === "playing";
+    this.sound.sfx.updateCat(playing ? { x: pos.x, z: pos.z } : null, moved > 0.3, c.state === "SLEEP");
+    const chasing = c.state === "CHASE" || c.state === "POUNCE";
+    const tense = suspicious || c.state === "INVESTIGATE" || c.state === "SEARCH" || c.state === "STIR";
+    this.sound.music.setIntensity(playing && tense, playing && chasing);
   }
 
   /** Briefing only: paw prints along the cat's patrol route, and an arrow over the exit. */
@@ -295,6 +385,10 @@ export class GameScene {
     state.players.forEach((p) => { if (p.seen >= TUNING.detect.question) suspicious = true; });
     this.cat.open = open;
     this.cat.update(dt, suspicious);
+    this.catAudio(dt, suspicious);
+    this.lights.update(dt);
+    this.pings.update(dt);
+    if (state.phase !== "intro" && state.phase !== "cutscene") this.showIntroCards();
 
     // Briefing: look straight down, show the route and the exit.
     const briefing = state.phase === "briefing";
@@ -304,6 +398,7 @@ export class GameScene {
     if (arrow) arrow.position.y = 1.2 + Math.sin(this.t * 3) * 0.15;
 
     const me = this.controller.current;
+    this.sound.sfx.setListener(me ? { x: me.x, z: me.z } : null);
     this.renderer.follow(playing ? me?.x ?? null : null, playing ? me?.z ?? null : null);
     this.effects.update(dt);
     this.updateHud(state, open, suspicious);
@@ -356,8 +451,12 @@ export class GameScene {
       kind: state.phase === "caught" ? "caught" : "complete",
       stars: state.stars,
       leftBehind: this.leftBehind,
+      home: this.home,
+      time: this.finishTime,
       isHost: state.hostId === this.room.sessionId,
       level: state.level,
+      levelName: this.level.name,
+      item: this.level.listItem?.name ?? null,
     } : null);
   }
 
@@ -418,6 +517,11 @@ export class GameScene {
   }
 
   dispose(): void {
+    window.removeEventListener("mousemove", this.onMouse);
+    window.removeEventListener("keydown", this.onPingKey);
+    this.cards.dispose();
+    this.sound.sfx.stopPurr();
+    this.sound.music.setIntensity(false, false);
     this.removeFrame();
     for (const off of this.unsubscribe) off();
     this.controller.dispose();

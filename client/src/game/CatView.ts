@@ -160,6 +160,8 @@ export class CatView {
   }
 
   get position(): THREE.Vector3 { return this.model.root.position; }
+  /** What thought bubbles hang over. */
+  get anchor(): THREE.Object3D { return this.model.root; }
 
   /** Draw the cat. `suspicious` = some player's detection meter is over 0.35. */
   update(dt: number, suspicious: boolean): void {

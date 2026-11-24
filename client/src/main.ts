@@ -1,6 +1,6 @@
 // Boot and screen router (PLAN.md Section 13).
 //
-//   https://localhost:5173              start screen: Host a heist / Join with code
+//   https://localhost:5173              "Click to begin", then the start screen: Host a heist / Join with code
 //   https://localhost:5173/?join=ABCD   straight into heist ABCD's lobby
 //   ?dev=1                              solo dev mode: one browser controls all 3 characters
 //   ?dev=1&level=5                      dev mode, starting at that level
@@ -9,11 +9,18 @@
 //   ?server=wss://host:port             a different server
 //   ?nomic=1                            never ask for the microphone
 //   ?fakemic=1                          send a beeping test tone instead of the mic (testing voice chat)
+//   ?low=1                              start with Low graphics on
 //
-// The "Click to begin" note, the 3D rooftop and the opening cutscene arrive in Phase 5.
+// Behind the start screen, lobby and opening cutscene is the 3D rooftop
+// (game/Rooftop.ts). Esc opens the menu in a room.
 
+import "@fontsource/caveat-brush";
+import "@fontsource/shantell-sans/400.css";
+import "@fontsource/shantell-sans/700.css";
+import "@fontsource/courier-prime";
 import "./ui/ui.css";
 import "./ui/screens.css";
+import "./ui/phase5.css";
 import { Renderer } from "./render/Renderer";
 import { Net, serverUrl, type HeistRoom } from "./net/Net";
 import { GameScene } from "./game/GameScene";
@@ -23,6 +30,13 @@ import { JoinScreen } from "./ui/screens/JoinScreen";
 import { LobbyScreen } from "./ui/screens/LobbyScreen";
 import { LOCAL_PEER, Voice, loadVoiceSettings } from "./net/Voice";
 import { audioBus } from "./audio/AudioBus";
+import { audio } from "./audio";
+import { Rooftop } from "./game/Rooftop";
+import { ClickToBegin } from "./ui/screens/ClickToBegin";
+import { SettingsScreen } from "./ui/screens/SettingsScreen";
+import { CutsceneOverlay } from "./ui/CutsceneOverlay";
+import { Menu } from "./ui/Menu";
+import { onSettings, settings } from "./settings";
 
 const params = new URLSearchParams(location.search);
 const dev = params.get("dev") === "1";
@@ -33,6 +47,17 @@ const ui = document.querySelector<HTMLDivElement>("#ui")!;
 const renderer = new Renderer(canvas);
 if (dev) renderer.enableDevZoom();
 const net = new Net(serverUrl(params));
+const rooftop = new Rooftop();
+onSettings((s) => renderer.setLowGraphics(s.lowGraphics));
+
+// The boil: a new noise seed every 120 ms (8 frames per second).
+const boilNoise = document.getElementById("boil-noise");
+window.setInterval(() => boilNoise?.setAttribute("seed", String(1 + Math.floor(Math.random() * 100))), 120);
+
+// A soft paper "pap" on every paper button.
+document.addEventListener("click", (e) => {
+  if (e.target instanceof HTMLElement && e.target.closest(".paper-button")) audio().sfx.play("pap", undefined, 1, "ui");
+});
 
 let screen: Screen | null = null;
 function show(next: Screen | null): void {
@@ -49,9 +74,12 @@ function joinError(err: unknown): string {
 }
 
 function startScreen(error = ""): void {
+  rooftop.attach(renderer);
+  rooftop.setShot("orbit");
   show(new StartScreen(ui, {
     host: (name) => void connect(() => net.host({ name, level: Number(params.get("level")) || undefined })),
     join: (name) => joinScreen(name),
+    settings: () => { const ss = new SettingsScreen(ui, null, () => ss.unmount()); },
   }, error));
 }
 
@@ -85,8 +113,11 @@ function enter(room: HeistRoom): void {
   show(null);
   let lobby: LobbyScreen | null = null;
   let scene: GameScene | null = null;
+  let cutscene: CutsceneOverlay | null = null;
+  const menu = new Menu(ui, null, () => void room.leave());
   const devCard = dev ? el("div", "card dev-card", ui) : null;
   const voice = dev ? null : startVoice(room);
+  menu.voice = voice;
   if (debug) Object.assign(window, { __voice: voice });
   const voiceState = (): "talking" | "idle" | "muted" | "nomic" | "off" =>
     !voice ? "off" : !voice.hasMic ? "nomic" : voice.isMuted ? "muted" : voice.isTalking ? "talking" : "idle";
@@ -104,14 +135,26 @@ function enter(room: HeistRoom): void {
       state.players.forEach((p) => { ids.push(p.owner); if (p.owner !== room.sessionId) voice.setPeerJarred(p.owner, p.jarred); });
       voice.syncPeers(ids);
     }
+    if (state.phase === "cutscene") {
+      lobby?.unmount();
+      lobby = null;
+      rooftop.attach(renderer);
+      if (!cutscene) cutscene = new CutsceneOverlay(ui, rooftop, audio(), (holding) => room.send("skip", { holding }));
+      cutscene.update(state.timer, state.skipping, state.players.size);
+      return;
+    }
+    if (cutscene) { cutscene.dispose(); cutscene = null; }
     if (state.phase === "lobby") {
       scene?.dispose();
       scene = null;
+      rooftop.attach(renderer);
+      rooftop.setShot("orbit");
       if (!lobby) lobby = new LobbyScreen(ui, room, voice);
       lobby.update(state);
     } else {
       lobby?.unmount();
       lobby = null;
+      rooftop.detach();
       if (state.players.size > 0 && (!scene || scene.run !== state.run)) {
         scene?.dispose();
         scene = new GameScene(renderer, room, { debug, uiRoot: ui });
@@ -130,9 +173,11 @@ function enter(room: HeistRoom): void {
     console.log("left room", code);
     scene?.dispose();
     lobby?.unmount();
+    cutscene?.dispose();
+    menu.dispose();
     devCard?.remove();
     voice?.dispose();
-    startScreen(`Disconnected (code ${code}).`);
+    startScreen(code === 4000 || code === 1000 ? "" : `Disconnected (code ${code}).`);
   });
 }
 
@@ -150,7 +195,7 @@ function startVoice(room: HeistRoom): Voice {
     if (typing(e) || e.repeat) return;
     if (e.code === "KeyV") {
       // The first V asks for the mic if the lobby's Test mic wasn't used.
-      if (down && !voice.hasMic && !voice.micError) void voice.askMic();
+      if (down && !voice.hasMic && !voice.micError) void voice.askMic(settings().micDevice || undefined);
       voice.setPushToTalk(down);
     }
     if (down && e.code === "KeyM") voice.setMuted(!voice.isMuted);
@@ -185,9 +230,20 @@ function fakeMic(): MediaStream {
   return dest.stream;
 }
 
-// Boot.
+// Boot. Dev mode goes straight in; otherwise "Click to begin" unlocks audio first.
 const joinCode = params.get("join");
 const name = params.get("name") ?? savedName();
-if (dev) void connect(() => net.host({ solo: true, level: Number(params.get("level")) || undefined }));
-else if (joinCode) void connect(() => net.join(joinCode, { name }));
-else startScreen();
+if (dev) {
+  void connect(() => net.host({ solo: true, level: Number(params.get("level")) || undefined }));
+} else {
+  rooftop.attach(renderer);
+  const begin = new ClickToBegin(ui, () => {
+    void audioBus().unlock().then(() => {
+      audio().music.start();
+      audio().music.fanfare();
+    });
+    begin.unmount();
+    if (joinCode) void connect(() => net.join(joinCode, { name }));
+    else startScreen();
+  });
+}

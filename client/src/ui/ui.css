@@ -11,6 +11,8 @@
   --cheese: #f2c14e;
   --crow-sheen: #6b5b95;
   --font-body: "Shantell Sans", "Comic Sans MS", system-ui, sans-serif;
+  --font-head: "Caveat Brush", "Shantell Sans", cursive;
+  --font-receipt: "Courier Prime", "Courier New", monospace;
 }
 
 * { box-sizing: border-box; }

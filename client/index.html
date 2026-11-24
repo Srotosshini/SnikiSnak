@@ -6,6 +6,10 @@
     <title>SnikiSnak — Midnight Sneaky Snack</title>
   </head>
   <body>
+    <!-- The "boil" wobble on titles and buttons (PLAN.md Section 11); main.ts changes the seed 8 times a second. -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <filter id="boil"><feTurbulence id="boil-noise" type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="1" /><feDisplacementMap in="SourceGraphic" scale="2.5" /></filter>
+    </svg>
     <canvas id="scene"></canvas>
     <div id="ui"></div>
     <script type="module" src="/src/main.ts"></script>
