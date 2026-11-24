@@ -78,13 +78,14 @@ export interface LevelDef {
 // ---------------------------------------------------------------------------
 
 export interface ClientMessages {
-  role: { role: Role };
+  /** "" gives the role back. */
+  role: { role: Role | "" };
   ready: { ready: boolean };
   start: Record<string, never>;
   skip: { holding: boolean };
   pos: { x: number; z: number; facing: number; moving: boolean; sneaking: boolean; seq: number; who?: string };
-  interact: Record<string, never>;
-  hold: { key: HoldKey; down: boolean };
+  interact: { who?: string };
+  hold: { key: HoldKey; down: boolean; who?: string };
   ping: { kind: PingKind; x: number; z: number };
   rtc: { to: string; data: unknown };
   mic: { muted: boolean };
@@ -100,7 +101,7 @@ export interface ServerMessages {
   sfx: { name: string; x?: number; z?: number };
   ping: { from: string; kind: PingKind; x: number; z: number };
   rtc: { from: string; data: unknown };
-  correct: { x: number; z: number };
+  correct: { x: number; z: number; who?: string };
   card: { cardId: string };
   complete: { stars: number; leftBehind: string[] };
   caught: Record<string, never>;
@@ -109,5 +110,8 @@ export interface ServerMessages {
 /** Options sent with client.create / client.joinById. */
 export interface JoinOptions {
   name?: string;
+  /** Dev mode: one client controls all three characters. */
   solo?: boolean;
+  /** Dev mode only: start at this level. */
+  level?: number;
 }

@@ -22,3 +22,33 @@ Decisions made where PLAN.md was unclear or the libraries changed. Each one pick
     Say so if you want any of these handled differently.
 11. **Credits.** The `CREDITS.md` template in Section 16 includes "Code written with Claude Code". Your standing instructions say never to credit Claude, so I'll leave that line out when we write credits.
 12. **Tests.** `npm test` runs the shared Vitest suite, as Section 8 says. The server's room tests (mocha, from the template) run with `npm run test:server`.
+
+## Phase 1
+
+1. **Straight into the level.** There is no lobby yet, so a room starts in the `playing` phase and players walk around Level 1 as soon as they join. Phase 3 adds the lobby and level flow.
+2. **Light brightness.** Section 11 says hemisphere intensity 0.6. Current Three.js uses physical light units, where that is almost black on toon materials, so I scaled all light intensities up (constants at the top of `client/src/render/Lights.ts`). The colours are the ones in the plan. The real lighting pass is Phase 5.
+3. **Movement check.**
+   - Section 9's rule is `maxSpeed × dt × 1.3 + 0.1`. I measure `dt` from the last accepted position, but never less than one tick (messages can arrive in bursts) and never more than 0.15 s. Otherwise a player who stood still for 10 seconds could jump 10 tiles in one message.
+   - The straight line of a move also mustn't pass through a solid tile.
+4. **Moving or not.** The server decides who is moving from real position changes, so a client can't fake silence. If a client says it stopped, footsteps stop at once.
+5. **F1 overlay.** Section 2 says F1 is dev mode only. I also allow it with `?debug=1`, so you can check things in a normal 3-player room.
+6. **Dev zoom.** In dev mode the mouse wheel zooms the camera in (it follows your character more closely when zoomed). Not available in normal play.
+7. **`owner` field.** `PlayerState` has an extra `owner` field: the session that controls the character. It's the player's own session normally, and the one dev-mode client for all three characters in dev mode.
+8. **Mochi's pink.** The palette has no pink, but Section 2 gives Mochi a pink nose. I tinted jam red toward paper.
+9. **Debug handle.** With `?debug=1` or `?dev=1`, `window.__sniki` holds the room and scene, for poking at things in the browser console.
+
+## Phase 2
+
+1. **Footsteps barely wake the Level 1 cat.** With the plan's numbers (footstep loudness 0.15, sleep hearing ×0.6, sleep drain 0.05/s), walking only wakes him from within about a tile of his nose. A run of 3–4 squeaks wakes him from across the room. That matches "careless walking next to the basket, or a run of squeaks", but if you want footsteps to matter more, lower `wakeAt` in the Level 1 file or raise `noise.walk` in `tuning.ts`.
+2. **Which states react to "?" and "!".**
+   - "!" (meter full, or bumping into him) starts a chase from any state except chase, pounce and catch.
+   - "?" (meter at 0.35) and loud noise send him to investigate from patrol, perch and return. Section 4.5 lists only patrol and perch, but a returning cat ignoring a player in plain sight felt wrong.
+   - While he's investigating, a new "?" or noise moves his target.
+3. **Chase distance.** He stops just short of the target (0.8 × the catch range) before pouncing. Otherwise he walks right on top of them and the pounce has no direction. The leap is exactly 1.2 tiles.
+4. **"All 3 players".** The win and star rules count everyone in the room, so testing with two tabs still works: both home ends the level at once. With 3 players it is exactly the plan's rule.
+5. **Grace period.** For the first 5 s the cat stays where he is (grooming), with no vision or hearing, and detection meters drain.
+6. **Starting level.** `?level=N` now works for a normal host too, not only in dev mode, so Level 2 can be tested with three tabs. The level select comes in Phase 3.
+7. **Synced state additions.** `CatState.vision` is his current view range (0 = eyes shut), so clients draw the cone exactly as the server sees. `HeistState.run` goes up on every start or restart, so clients rebuild the scene. `HeistState.exitReady` shows the "Call it a night" prompt.
+8. **Toasts.** "Need one more friend!" and "Kiwi or Pip can carry this." are UI messages, sent by the server as text. Real dialogue (Crow lines, barks) lives in `client/src/content/script.ts`. The wrong-role barks come in Phase 3.
+9. **Placeholders.** The detection "eye" over your head (Section 11) is a simple meter bar in the bottom-left corner for now. The thimble is a small gold cup. Thought bubbles and sounds come in Phase 5.
+10. **Dev mode and F.** When you switch characters with backquote, the one you leave keeps holding F. To let go, switch back and tap F.

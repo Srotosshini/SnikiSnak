@@ -7,14 +7,33 @@
 import { Client, type Room } from "@colyseus/sdk";
 import type { JoinOptions } from "@snikisnak/shared";
 
-/** What the client reads from the synced state in Phase 0 (server/src/rooms/schema/HeistState.ts). */
+/** What the client reads from the synced state (server/src/rooms/schema/HeistState.ts). */
 export interface PlayerView {
-  id: string; name: string; role: string; ready: boolean; connected: boolean;
-  x: number; z: number; facing: number;
+  id: string; owner: string; name: string; role: string; ready: boolean; connected: boolean;
+  x: number; z: number; facing: number; moving: boolean; sneaking: boolean;
+  hidden: boolean; seen: number; jarred: boolean; rescue: number; carrying: string;
+  mode: string; holdKind: string; hold: number;
+}
+export interface DoorView { id: string; open: boolean; pick: number; }
+export interface CatView {
+  x: number; z: number; facing: number; headYaw: number; state: string; alert: number;
+  targetId: string; vision: number; bubble: string; bubbleSeq: number;
+}
+export interface ItemView {
+  id: string; kind: string; x: number; z: number; carriedBy: string; onLedge: boolean; visible: boolean;
+}
+interface MapView<T> {
+  size: number;
+  get(key: string): T | undefined;
+  forEach(cb: (value: T, key: string) => void): void;
 }
 export interface HeistView {
-  phase: string; level: number; hostId: string; code: string; solo: boolean;
-  players: { size: number; forEach(cb: (p: PlayerView, id: string) => void): void };
+  phase: string; level: number; run: number; timer: number; hostId: string; code: string; solo: boolean;
+  exitReady: boolean; exitHold: number; anyoneJarred: boolean; stars: number;
+  players: MapView<PlayerView>;
+  cat: CatView;
+  items: MapView<ItemView>;
+  doors: MapView<DoorView>;
   toJSON(): unknown;
 }
 

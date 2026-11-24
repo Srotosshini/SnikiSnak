@@ -6,10 +6,15 @@
   --tape: #e8d9a8;
   --jam: #d9534f;
   --leaf: #7cc26b;
+  --crumbs: #e8893a;
+  --gold: #e8b923;
+  --cheese: #f2c14e;
+  --crow-sheen: #6b5b95;
   --font-body: "Shantell Sans", "Comic Sans MS", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -58,12 +63,80 @@ html, body {
   transform: rotate(2deg);
 }
 
-.net-card { top: 24px; left: 24px; min-width: 260px; max-width: 340px; }
+.net-card { top: 16px; right: 16px; max-width: 240px; padding: 6px 12px; transform: rotate(1deg); font-size: 12px; }
 .net-card h1 { margin: 0 0 6px; font-size: 20px; }
-.net-card .code { font-size: 32px; letter-spacing: 6px; font-weight: 700; }
-.net-card .status { font-size: 14px; margin: 4px 0 10px; }
+.net-card .code { font-size: 20px; letter-spacing: 5px; font-weight: 700; }
+.net-card .status { font-size: 11px; margin: 0; }
+.net-card ul { font-size: 12px; margin: 2px 0 0; padding-left: 16px; }
 .net-card .status.error { color: var(--jam); }
 .net-card ul { margin: 8px 0 0; padding-left: 18px; }
 .net-card li.away { opacity: 0.5; }
 .net-card a { color: var(--ink); }
-.net-card .hint { font-size: 12px; margin-top: 10px; }
+.net-card .hint { font-size: 11px; margin-top: 4px; }
+
+/* --- HUD (Phase 2 basics) --- */
+.hud { position: fixed; inset: 0; pointer-events: none; }
+
+.hud-label { top: 20px; left: 20px; padding: 8px 14px; transform: rotate(-1.5deg); }
+.hud-label .level-name { font-weight: 700; font-size: 17px; }
+.hud-label .level-item { font-size: 13px; }
+.hud-label.done .level-item { text-decoration: line-through; text-decoration-thickness: 2px; }
+
+.hud-prompt {
+  left: 50%; bottom: 28px; transform: translateX(-50%) rotate(-0.5deg);
+  padding: 8px 18px; font-size: 18px; font-weight: 700; text-align: center; min-width: 180px;
+  white-space: nowrap;
+}
+.hud-prompt::before { display: none; }
+.hud-prompt.disabled { opacity: 0.6; font-weight: 400; font-style: italic; }
+.prompt-bar { height: 8px; margin-top: 6px; border: 2px solid var(--ink); border-radius: 4px; }
+.prompt-fill { height: 100%; width: 0; background: var(--leaf); }
+
+.hud-toasts { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.hud-toast { position: relative; padding: 6px 14px; font-size: 15px; transform: rotate(1deg); }
+.hud-toast::before { display: none; }
+
+.hud-meter { left: 20px; bottom: 28px; padding: 6px 12px; transform: rotate(1deg); font-size: 12px; min-width: 150px; }
+.hud-meter::before { display: none; }
+.meter-bar { height: 8px; margin-top: 4px; border: 2px solid var(--ink); border-radius: 4px; }
+.meter-fill { height: 100%; width: 0; background: var(--tape); }
+.hud-meter.warn .meter-fill { background: var(--crumbs); }
+.hud-meter.alarm .meter-fill { background: var(--jam); }
+.hud-meter.hidden-spot .meter-label { color: var(--leaf); font-weight: 700; }
+
+.hud-result {
+  left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-1deg);
+  padding: 22px 30px; text-align: center; min-width: 320px; max-width: 90vw;
+}
+.hud-result .stamp {
+  display: inline-block; font-size: 54px; font-weight: 900; letter-spacing: 3px; color: var(--jam);
+  border: 5px solid var(--jam); border-radius: 8px; padding: 0 16px; transform: rotate(-6deg);
+}
+.hud-result .result-title { font-size: 30px; font-weight: 700; }
+.hud-result .stars { margin: 10px 0; }
+.hud-result .star { width: 48px; height: 48px; margin: 0 4px; }
+.hud-result .star polygon { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linejoin: round; }
+.hud-result .star.filled polygon { fill: var(--gold); }
+.hud-result .crow { font-style: italic; margin: 12px 0 6px; }
+.hud-result .left-behind { font-size: 14px; margin: 4px 0; }
+.hud-result .buttons { margin-top: 14px; display: flex; gap: 12px; justify-content: center; }
+.hud-result .waiting { margin: 0; font-size: 14px; }
+
+.paper-button {
+  font: inherit; font-size: 17px; font-weight: 700; color: var(--ink); cursor: pointer;
+  background: var(--tape); border: 2.5px solid var(--ink); border-radius: 4px 7px 5px 6px;
+  padding: 6px 18px; transition: transform 0.1s;
+}
+.paper-button:hover { transform: scale(1.04) rotate(1deg); }
+.paper-button.primary { background: var(--paper); }
+
+.dev-panel {
+  bottom: 20px;
+  left: 20px;
+  transform: none;
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 12px;
+  white-space: pre;
+  opacity: 0.92;
+}
+.dev-panel::before { display: none; }

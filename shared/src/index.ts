@@ -4,3 +4,8 @@ export * from "./roles.js";
 export * from "./grid.js";
 export * from "./levels/index.js";
 export * from "./levels/validate.js";
+export * from "./rules/movement.js";
+export * from "./rules/noise.js";
+export * from "./rules/detection.js";
+export * from "./interact.js";
+export * from "./barks.js";
