@@ -102,6 +102,7 @@ export class Rooftop {
     // The three smugglers along the roof edge.
     (["kiwi", "mochi", "pip"] as Role[]).forEach((role, i) => {
       const c = new Character(role);
+      c.setRing(false);
       c.setPose(-1.4 + i * 1.4, 1.8, Math.PI);
       c.root.position.y = 0;
       this.root.add(c.root);

@@ -15,11 +15,17 @@ import * as THREE from "three";
 import type { LightDef } from "@snikisnak/shared";
 import { PALETTE } from "./palette";
 
-const HEMI_INTENSITY = 2.2;
-const MOON_INTENSITY = 1.8;
-const LAMP_INTENSITY = 9;
-const MOON_POOL_INTENSITY = 4;
+// A cosy bakery at night: warm fill from the lamps, cool moonlight through the window.
+const HEMI_INTENSITY = 1.35;
+const HEMI_SKY = 0xc9b8d8;     // soft lavender night sky
+const HEMI_GROUND = 0x5e3b26;  // warm wood bounce
+const MOON_INTENSITY = 1.5;
+const LAMP_INTENSITY = 10;
+const MOON_POOL_INTENSITY = 3;
 const DUST_COUNT = 200;
+/** How strong the light-pool decals on the floor are. */
+const LAMP_POOL = 0.18;
+const MOON_POOL = 0.1;
 
 let poolTexture: THREE.CanvasTexture | null = null;
 
@@ -52,7 +58,7 @@ export class LightRig {
 
   constructor(private readonly lights: readonly LightDef[], width: number, depth: number) {
     this.root.name = "lights";
-    this.hemi = new THREE.HemisphereLight(PALETTE.hemiSky, PALETTE.hemiGround, HEMI_INTENSITY);
+    this.hemi = new THREE.HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY);
     this.root.add(this.hemi);
 
     // The moon: high in the north-east, casting soft shadows over the whole room.
@@ -71,13 +77,20 @@ export class LightRig {
       const isLamp = l.kind === "lamp";
       const color = isLamp ? PALETTE.lamp : PALETTE.moon;
       const base = isLamp ? LAMP_INTENSITY : MOON_POOL_INTENSITY;
-      const light = new THREE.PointLight(color, base, l.radius * 2, 1.2);
-      light.position.set(l.x, isLamp ? 1.4 : 2.4, l.z);
+      const light = new THREE.PointLight(color, base, l.radius * 2.4, 1.4);
+      // Lamps hang high, so seen from the camera they sit north of what they light (and never cover it).
+      light.position.set(l.x, isLamp ? 2.5 : 2.4, l.z);
+      if (isLamp) {
+        light.castShadow = true;
+        light.shadow.mapSize.set(512, 512);
+        light.shadow.radius = 6;
+        light.shadow.bias = -0.002;
+      }
       // The pool on the floor.
       const pool = new THREE.Mesh(
         new THREE.PlaneGeometry(l.radius * 2, l.radius * 2),
         new THREE.MeshBasicMaterial({
-          color, map: poolTex(), transparent: true, opacity: isLamp ? 0.35 : 0.22,
+          color, map: poolTex(), transparent: true, opacity: isLamp ? LAMP_POOL : MOON_POOL,
           blending: THREE.AdditiveBlending, depthWrite: false,
         }),
       );
@@ -87,12 +100,7 @@ export class LightRig {
       this.root.add(light, pool);
       this.lamps.push({ light, pool, base });
       if (!isLamp) this.root.add(moonShaft(l));
-      if (isLamp) {
-        // A small glowing bulb so bloom has something to catch.
-        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: PALETTE.paper }));
-        bulb.position.copy(light.position);
-        this.root.add(bulb);
-      }
+      if (isLamp) this.root.add(pendant(light.position));
     }
 
     // Dust motes drifting in the light pools.
@@ -129,7 +137,7 @@ export class LightRig {
       const isLamp = l.light.color.getHex() === PALETTE.lamp;
       const k = isLamp ? (1 - this.dark) * flicker : 1;
       l.light.intensity = l.base * k;
-      l.pool.material.opacity = (isLamp ? 0.35 : 0.22) * k;
+      l.pool.material.opacity = (isLamp ? LAMP_POOL : MOON_POOL) * k;
     }
     this.hemi.intensity = HEMI_INTENSITY * (1 - this.dark * 0.65);
 
@@ -171,11 +179,29 @@ function moonShaft(l: LightDef): THREE.Mesh {
   const cone = new THREE.Mesh(
     new THREE.CylinderGeometry(l.radius * 0.3, l.radius * 0.9, h, 24, 1, true),
     new THREE.MeshBasicMaterial({
-      color: PALETTE.moon, map: shaftTex(), transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending,
+      color: PALETTE.moon, map: shaftTex(), transparent: true, opacity: 0.035, blending: THREE.AdditiveBlending,
       depthWrite: false, side: THREE.DoubleSide,
     }),
   );
   cone.position.set(l.x, h / 2, l.z);
   cone.renderOrder = 2;
   return cone;
+}
+
+/** A hanging enamel pendant lamp: a cord up out of view, a shade, a warm bulb. */
+function pendant(at: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(at);
+  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 3, 6), new THREE.MeshStandardMaterial({ color: 0x2b1d16 }));
+  cord.position.y = 1.55;
+  const shade = new THREE.Mesh(
+    new THREE.ConeGeometry(0.32, 0.26, 24, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xe8d9a8, roughness: 0.4, metalness: 0.2, side: THREE.DoubleSide }),
+  );
+  shade.position.y = 0.16;
+  shade.castShadow = false;
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), new THREE.MeshBasicMaterial({ color: 0xfff2d6 }));
+  bulb.position.y = 0.02;
+  g.add(cord, shade, bulb);
+  return g;
 }

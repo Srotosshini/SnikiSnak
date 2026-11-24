@@ -7,6 +7,7 @@
 // Post-processing runs unless Low graphics is on (which also turns off shadows).
 
 import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { PALETTE } from "./palette";
 import { Post } from "./Post";
 
@@ -15,7 +16,14 @@ const PITCH = THREE.MathUtils.degToRad(55);
 /** The briefing camera rises to look almost straight down. */
 const TOP_DOWN_PITCH = THREE.MathUtils.degToRad(78);
 /** Tiles of margin around the room (1 tile, plus a little for the drift). */
-const MARGIN = 1.4;
+const MARGIN = 0.9;
+/**
+ * Screen space kept clear for the HUD, in pixels: the level label and cat
+ * meter at the top, the team cards and prompt at the bottom. The room is
+ * framed in the space left over, so it fits any monitor from 1366×768 up.
+ */
+const HUD_TOP = 64;
+const HUD_BOTTOM = 84;
 const DRIFT = 0.25;
 /** How quickly the camera catches up with its target (1/seconds). */
 const FOLLOW_RATE = 3;
@@ -50,6 +58,12 @@ export class Renderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Filmic tone mapping and a soft studio environment, so the realistic materials read well.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.35;
     this.scene.background = new THREE.Color(PALETTE.midnight);
     this.post = new Post(this.renderer, this.scene, this.camera);
 
@@ -136,13 +150,16 @@ export class Renderer {
       }
     }
     const centre = new THREE.Vector3(width / 2, 0, depth / 2);
+    const h = Math.max(1, window.innerHeight);
+    // The room must fit between the HUD strips at the top and bottom.
+    const top = 1 - (2 * HUD_TOP) / h, bottom = -1 + (2 * HUD_BOTTOM) / h;
     const fits = (d: number): boolean => {
       this.camera.position.set(centre.x, centre.y + Math.sin(this.pitch) * d, centre.z + Math.cos(this.pitch) * d);
       this.camera.lookAt(centre);
       this.camera.updateMatrixWorld();
       return corners.every((c) => {
         const p = c.clone().project(this.camera);
-        return Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1 && p.z < 1;
+        return Math.abs(p.x) <= 0.98 && p.y <= top && p.y >= bottom && p.z < 1;
       });
     };
     let lo = 1, hi = 400;
@@ -188,7 +205,7 @@ export class Renderer {
       this.placeCamera();
     }
     // Less tilt-shift blur when looking straight down in the briefing.
-    this.post.setTiltStrength(this.targetPitch === PITCH || this.manual ? 3 : 1);
+    this.post.setTiltStrength(this.manual ? 3 : this.targetPitch === PITCH ? 1.6 : 0.6);
     if (this.post.enabled) this.post.render(dt);
     else this.renderer.render(this.scene, this.camera);
   }

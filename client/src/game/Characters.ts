@@ -138,6 +138,8 @@ export interface AnimInput {
 /** Walk-cycle frequency per tile/s of speed: at walk speed a footfall lands about every 0.38 s. */
 const STRIDE = Math.PI / (TUNING.noise.stepEvery * TUNING.player.walk);
 const SQUASH_TIME = 0.06;
+/** Where the "you" arrow floats. */
+const ARROW_HEIGHT: Record<Role, number> = { kiwi: 0.7, mochi: 0.7, pip: 1.05 };
 /** How fast a character turns to face where it moves (1/seconds). */
 const TURN_RATE = 18;
 
@@ -151,7 +153,9 @@ export class Character {
   private blink = 0;
   private lowered = 0;
   private lastSin = 0;
-  private readonly marker: THREE.Mesh;
+  private readonly ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  private readonly arrow: THREE.Mesh;
+  private local = false;
   private targetFacing = 0;
 
   constructor(readonly role: Role) {
@@ -167,19 +171,34 @@ export class Character {
     shadow.renderOrder = 1;
     this.root.add(shadow);
 
-    // A faint paper ring under your own character.
-    this.marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.27, 0.31, 32),
-      new THREE.MeshBasicMaterial({ color: PALETTE.paper, transparent: true, opacity: 0.55, depthWrite: false }),
+    // A ring in the character's colour, so everyone is easy to spot and tell apart.
+    this.ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.3, 0.36, 40),
+      new THREE.MeshBasicMaterial({ color: ROLE_COLOR[role], transparent: true, opacity: 0.8, depthWrite: false }),
     );
-    this.marker.rotation.x = -Math.PI / 2;
-    this.marker.position.y = 0.01;
-    this.marker.visible = false;
-    this.root.add(this.marker);
+    this.ring.rotation.x = -Math.PI / 2;
+    this.ring.position.y = 0.012;
+    this.ring.renderOrder = 2;
+    this.root.add(this.ring);
+
+    // Your own character also gets a bobbing gold arrow overhead.
+    this.arrow = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.2, 4), new THREE.MeshBasicMaterial({ color: PALETTE.gold }));
+    this.arrow.rotation.x = Math.PI;
+    this.arrow.position.y = ARROW_HEIGHT[role];
+    this.arrow.visible = false;
+    this.root.add(this.arrow);
   }
 
   setLocal(local: boolean): void {
-    this.marker.visible = local;
+    this.local = local;
+    this.arrow.visible = local;
+    this.ring.material.opacity = local ? 1 : 0.7;
+    this.ring.scale.setScalar(local ? 1.15 : 1);
+  }
+
+  /** Hide the ground ring (the rooftop scenes don't need it). */
+  setRing(visible: boolean): void {
+    this.ring.visible = visible;
   }
 
   setPose(x: number, z: number, facing: number): void {
@@ -189,6 +208,10 @@ export class Character {
 
   update(dt: number, a: AnimInput): void {
     this.t += dt;
+    if (this.local) {
+      this.arrow.position.y = ARROW_HEIGHT[this.role] + Math.abs(Math.sin(this.t * 3)) * 0.12;
+      this.arrow.rotation.y += dt * 2;
+    }
     // Turn smoothly toward the facing direction, the short way round.
     const diff = Math.atan2(Math.sin(this.targetFacing - this.root.rotation.y), Math.cos(this.targetFacing - this.root.rotation.y));
     this.root.rotation.y += diff * Math.min(1, dt * TURN_RATE);

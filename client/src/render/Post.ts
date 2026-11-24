@@ -55,8 +55,8 @@ const GradeShader = {
     shadowTint: { value: new THREE.Color(PALETTE.midnight) },
     highlightTint: { value: new THREE.Color(PALETTE.lamp) },
     saturation: { value: 0.95 },
-    vignette: { value: 0.35 },
-    grain: { value: 0.04 },
+    vignette: { value: 0.3 },
+    grain: { value: 0.03 },
     time: { value: 0 },
   },
   vertexShader: TiltShiftShader.vertexShader,
@@ -74,7 +74,7 @@ const GradeShader = {
       vec3 c = texture2D(tDiffuse, vUv).rgb;
       float l = dot(c, vec3(0.299, 0.587, 0.114));
       // Lift shadows toward midnight blue, warm the highlights a little.
-      c = mix(c, c + shadowTint * 0.35, (1.0 - smoothstep(0.0, 0.45, l)) * 0.5);
+      c = mix(c, c + shadowTint * 0.18, (1.0 - smoothstep(0.0, 0.4, l)) * 0.5);
       c = mix(c, c * (0.85 + highlightTint * 0.25), smoothstep(0.55, 1.0, l) * 0.6);
       c = mix(vec3(l), c, saturation);
       // Vignette.
