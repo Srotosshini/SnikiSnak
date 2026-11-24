@@ -22,7 +22,7 @@ import { Effects } from "../render/Effects";
 import { PALETTE } from "../render/palette";
 import { toonMesh } from "../render/Toon";
 import { type DoorView, buildLevel } from "./LevelBuilder";
-import { Character } from "./Characters";
+import { CHARACTER_SCALE, Character } from "./Characters";
 import { CatView } from "./CatView";
 import { ItemView, JarView, ProgressRing } from "./Props";
 import { LocalController } from "./LocalController";
@@ -45,8 +45,8 @@ interface Entity {
 }
 
 /** How high an item sits on each character's back, and where a speech bubble goes. */
-const BACK_HEIGHT: Record<Role, number> = { kiwi: 0.3, mochi: 0.32, pip: 0.5 };
-const HEAD_HEIGHT: Record<Role, number> = { kiwi: 0.5, mochi: 0.5, pip: 0.85 };
+const BACK_HEIGHT: Record<Role, number> = { kiwi: 0.3 * CHARACTER_SCALE, mochi: 0.32 * CHARACTER_SCALE, pip: 0.5 * CHARACTER_SCALE };
+const HEAD_HEIGHT: Record<Role, number> = { kiwi: 0.6 * CHARACTER_SCALE, mochi: 0.6 * CHARACTER_SCALE, pip: 0.95 * CHARACTER_SCALE };
 
 export interface GameSceneOptions {
   /** Show the F1 overlay (dev mode or ?debug=1). */

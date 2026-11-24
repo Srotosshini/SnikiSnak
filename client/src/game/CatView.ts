@@ -12,10 +12,15 @@ import type { CatView as CatSnapshot } from "../net/Net";
 
 const STRIPE = new THREE.Color(PALETTE.crumbs).lerp(new THREE.Color(PALETTE.darkWood), 0.4).getHex();
 /** Pale yellow while calm, orange while suspicious, red while chasing (Section 4.4). */
-const CONE_CALM = PALETTE.tape;
+// Calm is a cool moonlight white so it stands out on the warm wooden floors.
+const CONE_CALM = 0xe6eeff;
 const CONE_SUSPICIOUS = PALETTE.crumbs;
 const CONE_CHASE = PALETTE.jam;
 const CONE_RAYS = 48;
+/** The outline path: centre → arc → centre, as a ribbon (2 vertices per point). */
+const EDGE_POINTS = CONE_RAYS + 3;
+const EDGE_VERTS = EDGE_POINTS * 2;
+const EDGE_WIDTH = 0.07;
 
 function ellipsoid(rx: number, ry: number, rz: number, seg = 20): THREE.BufferGeometry {
   return new THREE.SphereGeometry(1, seg, Math.round(seg * 0.75)).scale(rx, ry, rz);
@@ -116,6 +121,7 @@ export class CatView {
   private readonly model = buildCat();
   private readonly interp = new Interp();
   private readonly cone: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  private readonly edge: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
   private readonly question = markSprite("?", PALETTE.cheese);
   private readonly alarm = markSprite("!", PALETTE.jam);
   private latest: CatSnapshot | null = null;
@@ -142,6 +148,20 @@ export class CatView {
     this.cone.frustumCulled = false;
     this.cone.renderOrder = 1;
     this.root.add(this.cone);
+
+    // A bright outline around the cone: the arc plus both sides, as thin ribbons.
+    const edgeGeo = new THREE.BufferGeometry();
+    edgeGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(EDGE_VERTS * 3), 3));
+    const eidx: number[] = [];
+    for (let i = 0; i < EDGE_VERTS / 2 - 1; i++) {
+      const a = i * 2;
+      eidx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    }
+    edgeGeo.setIndex(eidx);
+    this.edge = new THREE.Mesh(edgeGeo, new THREE.MeshBasicMaterial({ color: CONE_CALM, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+    this.edge.frustumCulled = false;
+    this.edge.renderOrder = 2;
+    this.root.add(this.edge);
 
     this.question.position.y = 2.1;
     this.alarm.position.y = 2.1;
@@ -206,10 +226,13 @@ export class CatView {
   private updateCone(c: CatSnapshot, suspicious: boolean): void {
     const range = c.vision;
     this.cone.visible = range > 0;
+    this.edge.visible = range > 0;
     if (!this.cone.visible) return;
     const chasing = c.state === "CHASE" || c.state === "POUNCE";
-    this.cone.material.color.setHex(chasing ? CONE_CHASE : suspicious ? CONE_SUSPICIOUS : CONE_CALM);
-    this.cone.material.opacity = chasing ? 0.38 : 0.3;
+    const color = chasing ? CONE_CHASE : suspicious ? CONE_SUSPICIOUS : CONE_CALM;
+    this.cone.material.color.setHex(color);
+    this.edge.material.color.setHex(color);
+    this.cone.material.opacity = chasing ? 0.34 : 0.22;
 
     const origin = this.model.root.position;
     const look = this.yaw + c.headYaw;
@@ -226,6 +249,27 @@ export class CatView {
     }
     pos.needsUpdate = true;
     this.cone.geometry.computeBoundingSphere();
+    this.updateEdge(pos);
+  }
+
+  /** Rebuild the outline ribbon along the cone's edge. */
+  private updateEdge(fan: THREE.BufferAttribute): void {
+    const pts: THREE.Vector2[] = [];
+    pts.push(new THREE.Vector2(fan.getX(0), fan.getZ(0)));
+    for (let i = 1; i <= CONE_RAYS + 1; i++) pts.push(new THREE.Vector2(fan.getX(i), fan.getZ(i)));
+    pts.push(pts[0].clone());
+    const pos = this.edge.geometry.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < EDGE_POINTS; i++) {
+      const p = pts[Math.min(i, pts.length - 1)];
+      const prev = pts[Math.max(0, i - 1)], next = pts[Math.min(pts.length - 1, i + 1)];
+      const dir = next.clone().sub(prev);
+      if (dir.lengthSq() < 1e-8) dir.set(1, 0);
+      dir.normalize();
+      const nx = -dir.y * EDGE_WIDTH / 2, nz = dir.x * EDGE_WIDTH / 2;
+      pos.setXYZ(i * 2, p.x + nx, 0.03, p.y + nz);
+      pos.setXYZ(i * 2 + 1, p.x - nx, 0.03, p.y - nz);
+    }
+    pos.needsUpdate = true;
   }
 
   private updateMarks(c: CatSnapshot, suspicious: boolean, dt: number): void {

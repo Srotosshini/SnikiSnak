@@ -114,7 +114,7 @@ function chalkboard(cx: number, z: number): THREE.Group {
   return g;
 }
 
-/** Aprons and a baker's hat hanging on the west wall. */
+/** Aprons hanging on hooks on the west wall. */
 function apronHooks(x: number, z0: number): THREE.Group {
   const g = new THREE.Group();
   g.add(mesh(new THREE.BoxGeometry(0.06, 0.08, 1.4), woodMaterial("walnut"), x + 0.03, 1.95, z0 + 0.7));
@@ -125,12 +125,6 @@ function apronHooks(x: number, z0: number): THREE.Group {
     a.rotation.y = Math.PI / 2;
     g.add(a);
   }
-  // The baker's hat.
-  const hat = new THREE.Group();
-  hat.add(mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.08, 16), plainMaterial(0xf8f4ea, 0.9), 0, 0, 0));
-  hat.add(mesh(new THREE.SphereGeometry(0.17, 14, 10).scale(1, 0.7, 1), plainMaterial(0xf8f4ea, 0.9), 0, 0.1, 0));
-  hat.position.set(x + 0.17, 2.1, z0 + 1.25);
-  g.add(hat);
   return g;
 }
 

@@ -1,6 +1,9 @@
 // Toon materials and ink outlines (PLAN.md Section 11, "Shading and lighting").
 //
-// Toon shading: MeshToonMaterial with a 3-step gradient (0.45, 0.75, 1.0).
+// Materials for characters and props: originally flat toon shading (Section 11);
+// since the realism pass they are a soft "vinyl toy" finish (MeshStandardMaterial)
+// so the figures sit naturally in the realistic rooms. The 3-step gradient map
+// is kept for the few things that still use MeshToonMaterial (rugs, vents).
 // Outlines: the "inverted hull" trick. Each mesh gets a slightly fatter copy
 // of itself that only draws its back faces in ink, so a dark rim shows around it.
 
@@ -25,14 +28,14 @@ export function toonGradient(): THREE.DataTexture {
   return gradient;
 }
 
-const toonCache = new Map<string, THREE.MeshToonMaterial>();
+const toonCache = new Map<string, THREE.MeshStandardMaterial>();
 
 /** A shared toon material for a palette colour. */
-export function toon(color: number, opts: { emissive?: number } = {}): THREE.MeshToonMaterial {
+export function toon(color: number, opts: { emissive?: number } = {}): THREE.MeshStandardMaterial {
   const key = `${color}:${opts.emissive ?? 0}`;
   let m = toonCache.get(key);
   if (!m) {
-    m = new THREE.MeshToonMaterial({ color, gradientMap: toonGradient() });
+    m = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0 });
     if (opts.emissive !== undefined) m.emissive = new THREE.Color(opts.emissive);
     toonCache.set(key, m);
   }

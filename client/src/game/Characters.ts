@@ -128,6 +128,9 @@ const BUILDERS: Record<Role, () => Model> = { kiwi: buildKiwi, mochi: buildMochi
 const SHADOW_SIZE: Record<Role, number> = { kiwi: 0.55, mochi: 0.45, pip: 0.55 };
 export const ROLE_COLOR: Record<Role, number> = { kiwi: PALETTE.leaf, mochi: PALETTE.mochi, pip: PALETTE.pip };
 
+/** How much bigger the smugglers are drawn than PLAN.md's sizes (readability on small screens). */
+export const CHARACTER_SCALE = 1.35;
+
 export interface AnimInput {
   moving: boolean;
   sneaking: boolean;
@@ -139,7 +142,7 @@ export interface AnimInput {
 const STRIDE = Math.PI / (TUNING.noise.stepEvery * TUNING.player.walk);
 const SQUASH_TIME = 0.06;
 /** Where the "you" arrow floats. */
-const ARROW_HEIGHT: Record<Role, number> = { kiwi: 0.7, mochi: 0.7, pip: 1.05 };
+const ARROW_HEIGHT: Record<Role, number> = { kiwi: 0.85, mochi: 0.85, pip: 1.3 };
 /** How fast a character turns to face where it moves (1/seconds). */
 const TURN_RATE = 18;
 
@@ -160,10 +163,14 @@ export class Character {
 
   constructor(readonly role: Role) {
     this.model = BUILDERS[role]();
-    this.root.add(this.model.body);
+    // Drawn a bit bigger than their collision circle, so they read on a laptop screen.
+    const holder = new THREE.Group();
+    holder.scale.setScalar(CHARACTER_SCALE);
+    holder.add(this.model.body);
+    this.root.add(holder);
 
     const shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(SHADOW_SIZE[role], SHADOW_SIZE[role]),
+      new THREE.PlaneGeometry(SHADOW_SIZE[role] * CHARACTER_SCALE, SHADOW_SIZE[role] * CHARACTER_SCALE),
       new THREE.MeshBasicMaterial({ map: blobShadowTexture(), transparent: true, depthWrite: false }),
     );
     shadow.rotation.x = -Math.PI / 2;

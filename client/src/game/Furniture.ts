@@ -111,9 +111,9 @@ const BUILDERS: Record<string, Builder> = {
     const b2 = boot(0x3d4a3a); b2.position.set(0.12, 0.6, 0.1); b2.rotation.set(0, -0.2, 1.3);
     g.add(b1, b2);
     // Spilt flour.
-    const dust = new THREE.Mesh(new THREE.CircleGeometry(r.w * 0.62, 24), new THREE.MeshBasicMaterial({ color: 0xf6f0e4, transparent: true, opacity: 0.35, depthWrite: false }));
+    const dust = new THREE.Mesh(new THREE.CircleGeometry(r.w * 0.4, 24), new THREE.MeshBasicMaterial({ color: 0xf6f0e4, transparent: true, opacity: 0.16, depthWrite: false }));
     dust.rotation.x = -Math.PI / 2;
-    dust.position.set(0.25, 0.006, 0.3);
+    dust.position.set(0.35, 0.006, 0.45);
     g.add(contact(r.w * 1.15, r.h * 1.15), dust);
     return g;
   },
